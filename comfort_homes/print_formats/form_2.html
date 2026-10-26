@@ -1,0 +1,398 @@
+<style>
+    @page {
+        size: A4;
+        margin: 10mm;
+    }
+
+    * {
+        box-sizing: border-box;
+    }
+
+    body {
+        margin: 0;
+        padding: 0;
+        font-family: "Times New Roman", Times, serif;
+        font-size: 11pt;
+        color: #111;
+    }
+
+    .form2-table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+        font-family: "Times New Roman", Times, serif;
+        font-size: 11pt;
+    }
+
+    .form2-table td {
+        border: 1px solid #777;
+        padding: 5px 7px;
+        vertical-align: middle;
+        word-wrap: break-word;
+        line-height: 1.25;
+    }
+
+    .party-label {
+        width: 22%;
+        white-space: nowrap;
+        font-weight: bold;
+    }
+
+    .party-value {
+        width: 78%;
+    }
+
+    .date-value {
+        font-weight: normal;
+        letter-spacing: 0;
+        white-space: nowrap;
+    }
+
+    .no-border {
+        border: none !important;
+    }
+
+    .title {
+        text-align: center;
+        font-size: 15pt;
+        font-weight: bold;
+        padding: 6px !important;
+    }
+
+    .subtitle {
+        text-align: center;
+        font-size: 12pt;
+        font-weight: bold;
+        padding: 7px !important;
+    }
+
+    .section-title {
+        font-weight: bold;
+        font-size: 11pt;
+    }
+
+    .bold {
+        font-weight: bold;
+    }
+
+    .center {
+        text-align: center;
+    }
+
+    .right {
+        text-align: right;
+    }
+
+    .important-box {
+        width: 65%;
+        margin: 10px auto;
+        border: 3px solid #111;
+        text-align: center;
+        font-weight: bold;
+    }
+
+    .important-box td {
+        border: none;
+        padding: 8px;
+        font-size: 12pt;
+    }
+
+    .goods-table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+    }
+
+    .goods-table td {
+        border: 1px solid #222;
+        padding: 5px;
+        font-weight: bold;
+    }
+
+    .goods-no {
+        width: 8%;
+        text-align: center;
+    }
+
+    .goods-name {
+        width: 52%;
+    }
+
+    .goods-check {
+        width: 7%;
+        text-align: center;
+    }
+
+    .goods-qty {
+        width: 13%;
+        text-align: center;
+    }
+
+    .goods-price {
+        width: 20%;
+        text-align: right;
+        white-space: nowrap;
+    }
+
+    .goods-heading td {
+        text-align: center;
+        font-weight: bold;
+        background: #f3f3f3;
+    }
+
+    .label {
+        font-weight: bold;
+    }
+
+    .amount {
+        text-align: right;
+        font-weight: bold;
+    }
+
+    .green-cell {
+        background: #eef7ee;
+        font-weight: bold;
+    }
+
+    .yellow-cell {
+        background: yellow;
+        font-weight: bold;
+        text-align: center;
+    }
+
+    .signature-box {
+        height: 70px;
+        vertical-align: bottom !important;
+    }
+
+    .sig-img {
+        max-width: 220px;
+        max-height: 55px;
+        display: block;
+        margin-top: 4px;
+    }
+
+    .page-break {
+        page-break-before: always;
+    }
+
+    .small {
+        font-size: 9pt;
+    }
+
+    .large-text {
+        font-size: 11pt;
+    }
+
+    .paragraph {
+        padding: 7px 10px !important;
+        line-height: 1.4;
+    }
+
+    .number-col {
+        width: 7%;
+        font-weight: bold;
+        text-align: center;
+    }
+
+    .description-col {
+        width: 63%;
+    }
+
+    .currency-col {
+        width: 5%;
+        text-align: center;
+    }
+
+    .value-col {
+        width: 15%;
+        text-align: right;
+        font-weight: bold;
+    }
+
+    .unit-col {
+        width: 15%;
+        text-align: center;
+        font-weight: bold;
+        background: #eef7ee;
+    }
+</style>
+{#- ==================== CO-APPLICANT LOOKUP ==================== -#}
+{#- Uses Jinja helpers registered via hooks.py → comfort_homes.print_helpers -#}
+{% set co_app = get_co_applicant(doc.name) %}
+{% set has_co_applicant = co_app is not none %}
+{% set joint_name = joint_name(doc.applicant_name, co_app) %}
+
+<!-- ========================================================= -->
+<!-- FORM 2 - PAGE 10 -->
+<!-- CONSENT TO ENTER PREMISES -->
+<!-- ========================================================= -->
+<table class="form2-table">
+<tr>
+<td class="title no-border" colspan="4">
+            FORM 2
+        </td>
+</tr>
+<tr>
+<td class="subtitle no-border" colspan="4">
+            CONSENT TO ENTER PREMISES
+        </td>
+</tr>
+<tr>
+<td class="party-label">Date:</td>
+<td class="party-value date-value" colspan="3">
+            {% set consent_date = doc.form2_date or doc.custom_flexi_form2_date %}
+            {{ frappe.utils.formatdate(consent_date, "dd-mm-yyyy") if consent_date else "" }}
+        </td>
+</tr>
+<tr>
+<td class="party-label">
+            To:
+        </td>
+<td class="bold" colspan="3">
+            COMFORT HOME FURNISHING PTE LIMITED TRADING AS FLEXIBLE PURCHASE
+        </td>
+</tr>
+<!--
+    <tr>
+        <td class="no-border"></td>
+        <td colspan="3" class="no-border">
+            <i>[Name of credit provider]</i>
+        </td>
+    </tr>
+    -->
+<tr>
+<td class="party-label">
+            FROM:
+        </td>
+<td class="bold" colspan="3">
+            {{ joint_name }}
+        </td>
+</tr>
+<tr>
+<td class="no-border"></td>
+<td class="no-border" colspan="3">
+<i>[Name of occupier]</i>
+</td>
+</tr>
+<tr>
+<td class="party-label">
+            ADDRESS:
+        </td>
+<td class="bold" colspan="3">
+            {{ doc.address_line_1 or "" }}
+            {% if doc.address_line_2 %}, {{ doc.address_line_2 }}{% endif %}
+            {% if doc.suburb %}, {{ doc.suburb }}{% endif %}
+            {% if doc.city %}, {{ doc.city }}{% endif %}
+            {% if doc.custom_province %}, {{ doc.custom_province }}{% endif %}
+            {% if doc.country %}, {{ doc.country }}{% endif %}
+            {% if doc.zip_code and doc.zip_code != 0 %}, {{ doc.zip_code }}{% endif %}
+        </td>
+</tr>
+<tr>
+<td class="paragraph large-text no-border" colspan="4">
+            I give consent to the credit provider or its agent to enter the premises to take
+            possession of the mortgaged goods described below.
+        </td>
+</tr>
+<tr>
+<td class="paragraph large-text no-border" colspan="4">
+            The mortgaged goods are:
+        </td>
+</tr>
+</table>
+<!-- GOODS -->
+<table class="goods-table data-table">
+<tr class="goods-heading">
+<td class="goods-no">No.</td>
+<td class="goods-name">Description of Goods</td>
+<td class="goods-check"></td>
+<td class="goods-qty">Qty</td>
+<td class="goods-price">Unit Price</td>
+</tr>
+
+    {% for item in (doc.custom_flexi_purchase_items or [])[:8] %}
+
+    <tr>
+<td class="goods-no">{{ loop.index }}</td>
+<td class="goods-name">{{ item.product_description or "" }}</td>
+<td class="goods-check">X</td>
+<td class="goods-qty">{{ item.quantity if item.quantity is not none else "" }}</td>
+<td class="goods-price">{{ "{:,.2f}".format(item.unit_price or 0) }}</td>
+</tr>
+
+    {% endfor %}
+
+    {% for i in range(8 - ((doc.custom_flexi_purchase_items or [])|length)) %}
+    <tr>
+<td class="goods-no">{{ ((doc.custom_flexi_purchase_items or [])|length) + loop.index }}</td>
+<td class="goods-name"></td>
+<td class="goods-check">X</td>
+<td class="goods-qty"></td>
+<td class="goods-price"></td>
+</tr>
+    {% endfor %}
+
+</table>
+<!-- IMPORTANT BOX -->
+<table class="important-box">
+<tr>
+<td style="font-size:12pt;">
+<strong> IMPORTANT </strong>
+</td>
+</tr>
+<tr>
+<td>
+<p>YOU HAVE THE RIGHT TO REFUSE CONSENT</p>
+<p>IF YOU DO, THE CREDIT PROVIDER MAY GO TO</p>
+<p>COURT FOR PERMISSION TO ENTER THE PREMISES</p>
+</td>
+</tr>
+</table>
+<table class="form2-table">
+<tr>
+<td class="no-border bold large-text" colspan="4">
+            Customer:
+        </td>
+</tr>
+<tr>
+<td class="signature-box" colspan="2">
+            {% if doc.custom_applicant_signature %}
+                <img class="sig-img" src="{{ doc.custom_applicant_signature }}"/>
+            {% endif %}
+        </td>
+<td colspan="2">
+            {% set customer_date = doc.form2_customer_date or doc.custom_flexi_form2_date %}
+            {{ frappe.utils.formatdate(customer_date, "dd-mm-yyyy") if customer_date else "" }}
+        </td>
+</tr>
+<tr>
+<td class="bold" colspan="2">
+            Signature
+        </td>
+<td class="bold" colspan="2">
+            Date
+        </td>
+</tr>
+{%- if has_co_applicant %}
+<tr>
+<td class="no-border bold large-text" colspan="4" style="padding-top:8px;">
+            Co-Applicant:
+        </td>
+</tr>
+<tr>
+<td class="signature-box" colspan="2">
+            {% if co_applicant_signature(co_app) %}
+                <img class="sig-img" src="{{ co_applicant_signature(co_app) }}"/>
+            {% endif %}
+        </td>
+<td colspan="2">
+            {{ co_applicant_signature_date(co_app) }}
+        </td>
+</tr>
+<tr>
+<td class="bold" colspan="2">Signature</td>
+<td class="bold" colspan="2">Date</td>
+</tr>
+{%- endif %}
+</table>

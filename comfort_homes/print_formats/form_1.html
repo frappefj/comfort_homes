@@ -1,0 +1,722 @@
+<style>
+    @page {
+        size: A4;
+        margin: 12mm;
+    }
+
+    * {
+        box-sizing: border-box;
+    }
+
+    body {
+        margin: 0;
+        padding: 0;
+    }
+
+    .f1-table {
+        width: 100%;
+        table-layout: fixed;
+        border-collapse: collapse;
+        font-size: 11px;
+        font-family: Arial, Helvetica, sans-serif;
+        color: #1a1a1a;
+    }
+
+    .f1-table td {
+		border: none;
+        padding: 3px 6px;
+        vertical-align: top;
+        word-wrap: break-word;
+    }
+
+    .f1-table.no-top-border {
+        border-top: none;
+    }
+
+    .f1-title {
+        text-align: center;
+        font-weight: bold;
+        font-size: 16px;
+        border: none;
+        padding: 4px 0 2px 0;
+    }
+
+    .f1-subtitle {
+        text-align: center;
+        font-weight: bold;
+        font-size: 13px;
+        border: none;
+        padding: 2px 0;
+    }
+
+    .bold {
+        font-weight: bold;
+    }
+
+    .num-col {
+        font-weight: bold;
+        text-align: center;
+        vertical-align: top;
+    }
+
+    .q-col {
+        font-weight: bold;
+    }
+
+    .section-header {
+        text-align: center;
+        font-weight: bold;
+        font-size: 13px;
+    }
+
+    .sig-img {
+        max-height: 45px;
+        max-width: 100%;
+        display: block;
+        margin-top: 2px;
+    }
+
+    .label-cell {
+        width: 25%;
+        font-weight: bold;
+        background: #f5f5f5;
+    }
+
+    .value-cell {
+        width: 25%;
+    }
+
+    .fill-box {
+        border-bottom: 1px solid #000;
+        min-height: 18px;
+        display: inline-block;
+        min-width: 150px;
+    }
+</style>
+{#- ==================== CO-APPLICANT LOOKUP ==================== -#}
+{#- Uses Jinja helpers registered via hooks.py → comfort_homes.print_helpers -#}
+{% set co_app = get_co_applicant(doc.name) %}
+{% set has_co_applicant = co_app is not none %}
+{% set joint_name = joint_name(doc.applicant_name, co_app) %}
+
+<table class="f1-table">
+<colgroup>
+<col style="width: 26px;"/>
+<col/>
+</colgroup>
+    <tr>
+<td class="f1-title" colspan="2">FORM 1</td>
+</tr>
+<tr>
+<td class="f1-subtitle" colspan="2">INFORMATION STATEMENT</td>
+</tr>
+<tr>
+<td class="f1-subtitle" colspan="2" style="font-size:12px;">
+            THINGS YOU SHOULD KNOW ABOUT YOUR PROPOSED CREDIT CONTRACT
+        </td>
+</tr>
+<tr>
+<td class="section-header" colspan="2">THE CONTRACT</td>
+</tr>
+<tr>
+<td class="num-col">1</td>
+<td class="q-col">
+            How can I get details of my proposed credit contract?
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            Your credit provider must give you a pre-contractual statement containing certain information about
+            your contract. The pre-contractual statement and this document must be given to you before-
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            · Your contract is entered into; or<br/>
+            · You make an offer to enter into the contract;<br/>
+            Which ever happens first.
+        </td>
+</tr>
+<tr>
+<td class="num-col">2</td>
+<td class="q-col">
+            How can I get a copy of the final contract?
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            If the contract document is to be signed by you and returned to your credit provider, you must be given a copy to keep.
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            Also, the credit provider must give you a copy of the final contract within 14 days it is made. This
+            rule does not, however, apply, if the contract can be accepted by you –
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            · Accessing or drawing down credit to incur a liability, or<br/>
+            · Satisfying other conditions
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            The rule will also not apply if, when the credit provider gives you a copy of document to sign and
+            return to the credit provider, you are given a copy of the contract document signed by the credit
+            provider to keep.
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            If you want another copy of your contract write to your credit provider and ask for one. Your credit
+            provider may charge you a fee. Your credit provider has to give you a copy-
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            · Within 14 days of your written request if the original contract came into existence 1 year or less before your request; or
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            · Otherwise within 30 days of your written request.
+        </td>
+</tr>
+<tr>
+<td class="num-col">3</td>
+<td class="q-col">
+            Can I terminate the contract?
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            Yes. So long as you have not obtained or tried to obtain any credit under the contract, you can
+            terminate the contract by writing to the credit provider. However, you will still have to pay any
+            fees or charges incurred before you terminated the contract.
+        </td>
+</tr>
+<tr>
+<td class="num-col">4</td>
+<td class="q-col">
+            How can I find out the payout for the contract?
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            You can pay your credit provider the amount required to pay out your credit contract on the day you wish to end your contract.
+        </td>
+</tr>
+<tr>
+<td class="num-col">5</td>
+<td class="q-col">
+            How can I find out the payout figure?
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            You can write to your credit provider the amount required to pay out your credit contract on the day you wish to end your contract.
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            Your credit provider must give you a statement within 7 days after your request to the credit provider. You may be charged a fee for the statement.
+        </td>
+</tr>
+<tr>
+<td class="num-col">6</td>
+<td class="q-col">
+            Will I pay less interest if I pay out my account early?
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            Yes. The interest you can be charged depends on the actual time money is owed. However, you may have
+            to pay an early termination charge (if your contract permits your credit provider to charge one) and
+            other fees.
+        </td>
+</tr>
+<tr>
+<td class="num-col">7</td>
+<td class="q-col">
+            Can my contract be changed by my credit provider?
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            Yes. But only if your contract says so.
+        </td>
+</tr>
+<tr>
+<td class="num-col">8</td>
+<td class="q-col">
+            Will I be told in advance if my credit provider is going to make a change in the contract?
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            That depends on the type of change. For example-
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            · You get at least same day notice for a change to an annual percentage rate. The notice may be written notice to you or a notice published in a newspaper.
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            · You get 30 days advance written notice for-
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            I. A change in the way in which interest is calculated; or<br/>
+            II. A change in credit fees; or<br/>
+            III. Any other changes by your credit provider
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            Except where the change reduces what you have to pay, or the change happens automatically under the contract.
+        </td>
+</tr>
+<tr>
+<td class="num-col">9</td>
+<td class="q-col">
+            Is there anything I can do if I think that my contract is unjust?
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            Yes. You should first talk to your credit provider. Discuss the matter and see if you can come to
+            some arrangement. If that is not successful, you could apply to the court. Contact the Department of
+            Fair Trading and Consumer Affairs or get legal advice on how to go about this.
+        </td>
+</tr>
+<tr>
+<td class="section-header" colspan="2">INSURANCE</td>
+</tr>
+<tr>
+<td class="num-col">10</td>
+<td class="q-col">
+            Do I have to take out insurance?
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            Your credit provider can insist that you take out or pay the cost of types of insurance specifically
+            allowed by law. These include compulsory third-party personal injury insurance, mortgage indemnity
+            insurance, or insurance covering property secured by any mortgage. Otherwise, you can decide if you
+            want to take out insurance or not.
+        </td>
+</tr>
+<tr>
+<td class="num-col">11</td>
+<td class="q-col">
+            Will I get details of my insurance now?
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            Yes. If you have taken out insurance over mortgaged property or consumer credit insurance, and the
+            premium is financed by your credit provider, the insurer must give you a copy of the policy within
+            14 days after the insurer has accepted the insurance proposal.
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            Also, if you acquire an interest in any such insurance policy which is taken out by your credit provider, then within 14 days after the insurer has accepted the insurance proposal.
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            You can always ask the insurer for details of your insurance contract. If you ask in writing, your insurer must give you a statement containing all the provisions of the contract.
+        </td>
+</tr>
+<tr>
+<td class="num-col">12</td>
+<td class="q-col">
+            If the insurer does not accept my proposal, will I be told?
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            Yes, if the insurance were to be financed by the credit contract. The insurer will inform you if the proposal is rejected.
+        </td>
+</tr>
+<tr>
+<td class="num-col">13</td>
+<td class="q-col">
+            In that case, what happens to the premiums?
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            Your credit provider must give you a refund or credit unless the insurance is to be arranged with another insurer.
+        </td>
+</tr>
+<tr>
+<td class="num-col">14</td>
+<td class="q-col">
+            What happens if my credit contract ends before any insurance contract over the mortgaged property?
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            You can end the insurance contract and get a proportionate rebate of any premium from the insurer.
+        </td>
+</tr>
+<tr>
+<td class="section-header" colspan="2">MORTGAGES</td>
+</tr>
+<tr>
+<td class="num-col">15</td>
+<td class="q-col">
+            If my contract says I have to give a mortgage, what does this mean?
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            A mortgage means that you give your credit provider certain rights over any property you mortgage. If you default under your contract, you can lose that property and you might still owe money to the credit provider.
+        </td>
+</tr>
+<tr>
+<td class="num-col">16</td>
+<td class="q-col">
+            Should I get a copy of mortgage?
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            Yes. It can be part of your credit contract or, if it is a separate document, you will be given a copy of the mortgage within 14 days after your mortgage is entered into.
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            However, you need not be given a copy if, when the credit provider gives you a copy of the mortgage document to sign and return to the credit provider, you are also given a copy of the mortgage document to keep.
+        </td>
+</tr>
+<tr>
+<td class="num-col">17</td>
+<td class="q-col">
+            Is there anything that I am not allowed to do with the property mortgaged?
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            The law says you cannot assign or dispose of the property unless you have your credit provider's or
+            the court's permission. You must also look after the property. Read the mortgage document as well.
+            It will usually have other terms and conditions about what you can or cannot do with the property.
+        </td>
+</tr>
+<tr>
+<td class="num-col">18</td>
+<td class="q-col">
+            What can I do if I find that I cannot afford my repayments and there is a mortgage over the property?
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            See the answers to questions 22 and 23
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            Otherwise you may –
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            · If the mortgaged property is goods, give the property back to your credit provider, together with a letter saying you want the credit provider to sell the property for you;
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            · Sell the property, but only if your credit provider gives permission first;<br/>
+            OR<br/>
+            · Give the property to someone who may then take over the repayments, but only if your credit provider gives permission first.
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            If your provider won't give permission contact the Department of Fair Trading and Consumer Affairs for help.
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            If you have a guarantor, talk to the guarantor who may be able to help you.
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            You should understand that you may owe money to your credit provider even after the mortgaged property is sold.
+        </td>
+</tr>
+<tr>
+<td class="num-col">19</td>
+<td class="q-col">
+            Can my credit provider take or sell the mortgaged property?
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            Yes, if you have not carried out all of your obligations under the contract.
+        </td>
+</tr>
+<tr>
+<td class="num-col">20</td>
+<td class="q-col">
+            If my credit provider writes asking me where the mortgaged goods are, do I have to say where they are?
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            Yes. You have 7 days after receiving your credit provider's request to tell your credit provider. If you do not have the goods you must give credit provider all the information you have so they can be traced.
+        </td>
+</tr>
+<tr>
+<td class="num-col">21</td>
+<td class="q-col">
+            When can my credit provider or its agent come into a residence to take possession of mortgaged goods?
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            Your credit provider can only do so if it has the court's approval or the written consent of the occupier which is given after the occupier is informed in writing of the relevant section in the Consumer Credit Act.
+        </td>
+</tr>
+<tr>
+<td class="section-header" colspan="2">GENERAL</td>
+</tr>
+<tr>
+<td class="num-col">22</td>
+<td class="q-col">
+            What do I do if I cannot make a repayment?
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            Get in touch with your credit provider immediately. Discuss the matter and see if you can come to some arrangement. You can ask your credit provider to change your contract in several ways, for example-
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            · To extend the term of the contract and either reduce the amount of each payment accordingly, or defer payments for a specified period, or
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            · To simply defer payments for a specified period.
+        </td>
+</tr>
+<tr>
+<td class="num-col">23</td>
+<td class="q-col">
+            What if my credit provider and I cannot agree on a suitable arrangement?
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            If you have been unemployed, sick or there is another good reason why you are having problems with your contract, then your contract may be able to be changed to meet your situation.
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            You may be able to apply to the court. Contact the Department of Fair Trading and Consumer Affairs or get legal advice on how to go about this.
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            There are other people, such as financial advisors, who may be able to help.
+        </td>
+</tr>
+<tr>
+<td class="num-col">24</td>
+<td class="q-col">
+            Can my credit provider take action against me?
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            Yes, if you are in default under your contract. But the law says that you cannot be unduly harassed or threatened for repayments. If you are being unduly harassed or threatened, contact the Department of Fair Trading and Consumer Affairs, or get legal advice.
+        </td>
+</tr>
+<tr>
+<td class="num-col">25</td>
+<td class="q-col">
+            Do I have any other legal rights and obligations?
+        </td>
+</tr>
+<tr>
+<td></td>
+<td>
+            Yes. The law will give you other rights and obligations. You should READ YOUR CONTRACT carefully.
+        </td>
+</tr>
+<tr>
+<td></td>
+<td class="bold">
+            IF YOU HAVE ANY DOUBTS OR WANT MORE INFORMATION, CONTACT THE DEPARTMENT OF FAIR TRADING AND CONSUMER
+            AFFAIRS OR GET LEGAL ADVICE. PLEASE KEEP THIS INFORMATION STATEMENT. YOU MAY WANT SOME INFORMATION
+            FROM IT AT A LATER DATE.
+        </td>
+</tr>
+</table>
+<!-- ========================================================= -->
+<!-- FORM 1 DETAILS -->
+<!-- ========================================================= -->
+<table class="f1-table no-top-border">
+<colgroup>
+<col style="width: 25%;"/>
+<col style="width: 25%;"/>
+<col style="width: 25%;"/>
+<col style="width: 25%;"/>
+</colgroup>
+<!-- DATED AT + THIS -->
+<tr>
+<td class="label-cell">DATED AT</td>
+<td class="value-cell">
+			{{ doc.address_line_1 or "" }}
+            {% if doc.address_line_2 %}
+                , {{ doc.address_line_2 }}
+            {% endif %}
+            {% if doc.city %}
+                , {{ doc.city }}
+            {% endif %}
+            {% if doc.custom_province %}
+                , {{ doc.custom_province }}
+            {% endif %}
+            {% if doc.country %}
+                , {{ doc.country }}
+            {% endif %}
+            {% if doc.zip_code and doc.zip_code != 0 %}
+                , {{ doc.zip_code }}
+            {% endif %}
+        </td>
+<td class="label-cell">THIS</td>
+<td class="value-cell">
+            {{ frappe.utils.formatdate(doc.form1_dated_at, "dd-mm-yyyy") if doc.form1_dated_at else "" }}			
+        </td>
+</tr>
+<!-- ACKNOWLEDGEMENT -->
+<tr>
+<td colspan="4">
+            I/we acknowledge that I/we have received a copy of this information statement.
+        </td>
+</tr>
+<!-- CUSTOMER -->
+<tr>
+<td class="bold" colspan="4">
+            Customer:
+        </td>
+</tr>
+<!-- CUSTOMER NAME + DATE -->
+<tr>
+<td class="label-cell">Name</td>
+<td class="value-cell">
+            {{ joint_name }}
+        </td>
+<td class="label-cell">Date</td>
+<td class="value-cell">
+            {{ frappe.utils.formatdate(doc.form1_customer_date, "dd-mm-yyyy") if doc.form1_customer_date else "" }}
+        </td>
+</tr>
+<!-- CUSTOMER SIGNATURE -->
+<tr style="height: 45px;">
+<td class="label-cell">
+            Signature
+        </td>
+<td colspan="3">
+            {% if doc.custom_applicant_signature %}
+                <img class="sig-img" src="{{ doc.custom_applicant_signature }}"/>
+            {% endif %}
+        </td>
+</tr>
+<!-- WITNESS -->
+<tr>
+<td class="bold" colspan="4" style="padding-top:8px;">
+            Witness:
+        </td>
+</tr>
+<!-- WITNESS NAME + DATE -->
+<tr>
+<td class="label-cell">
+            Name
+        </td>
+<td class="value-cell">
+            {{ doc.custom_witness_name or "" }}
+        </td>
+<td class="label-cell">
+            Date
+        </td>
+<td class="value-cell">
+            {{ frappe.utils.formatdate(doc.custom_witness_date, "dd-mm-yyyy") if doc.custom_witness_date else "" }}
+        </td>
+</tr>
+<!-- WITNESS ADDRESS + SIGNATURE -->
+<tr style="height: 45px;">
+<td class="label-cell">
+            Address
+        </td>
+<td class="value-cell">
+            {{ doc.custom_witness_address or "" }}
+        </td>
+<td class="label-cell">
+            Signature
+        </td>
+<td class="value-cell">
+            {% if doc.custom_witness_signature %}
+                <img class="sig-img" src="{{ doc.custom_witness_signature }}"/>
+            {% endif %}
+        </td>
+</tr>
+</table>

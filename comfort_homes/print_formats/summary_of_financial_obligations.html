@@ -1,0 +1,805 @@
+<style>
+    @page {
+        size: A4;
+        margin: 10mm;
+    }
+
+    * {
+        box-sizing: border-box;
+    }
+
+    body {
+        margin: 0;
+        padding: 0;
+        font-family: "Times New Roman", Times, serif;
+        font-size: 11pt;
+        color: #111;
+    }
+
+    .form2-table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+        font-family: "Times New Roman", Times, serif;
+        font-size: 11pt;
+    }
+
+    .form2-table td {
+        border: 1px solid #777;
+        padding: 5px 7px;
+        vertical-align: middle;
+        word-wrap: break-word;
+        line-height: 1.25;
+    }
+
+    .party-label {
+        width: 22%;
+        white-space: nowrap;
+        font-weight: bold;
+    }
+
+    .party-value {
+        width: 78%;
+    }
+
+    .date-value {
+        font-weight: normal;
+        letter-spacing: 0;
+        white-space: nowrap;
+    }
+
+    .no-border {
+        border: none !important;
+    }
+
+    .title {
+        text-align: center;
+        font-size: 15pt;
+        font-weight: bold;
+        padding: 6px !important;
+    }
+
+    .subtitle {
+        text-align: center;
+        font-size: 12pt;
+        font-weight: bold;
+        padding: 7px !important;
+    }
+
+    .section-title {
+        font-weight: bold;
+        font-size: 11pt;
+    }
+
+    .bold {
+        font-weight: bold;
+    }
+
+    .center {
+        text-align: center;
+    }
+
+    .right {
+        text-align: right;
+    }
+
+    .important-box {
+        width: 65%;
+        margin: 10px auto;
+        border: 3px solid #111;
+        text-align: center;
+        font-weight: bold;
+    }
+
+    .important-box td {
+        border: none;
+        padding: 8px;
+        font-size: 12pt;
+    }
+
+    .goods-table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+    }
+
+    .goods-table td {
+        border: 1px solid #222;
+        padding: 5px;
+        font-weight: bold;
+    }
+
+    .goods-no {
+        width: 8%;
+        text-align: center;
+    }
+
+    .goods-name {
+        width: 52%;
+    }
+
+    .goods-check {
+        width: 7%;
+        text-align: center;
+    }
+
+    .goods-qty {
+        width: 13%;
+        text-align: center;
+    }
+
+    .goods-price {
+        width: 20%;
+        text-align: right;
+        white-space: nowrap;
+    }
+
+    .goods-heading td {
+        text-align: center;
+        font-weight: bold;
+        background: #f3f3f3;
+    }
+
+    .label {
+        font-weight: bold;
+    }
+
+    .amount {
+        text-align: right;
+        font-weight: bold;
+    }
+
+    .green-cell {
+        background: #eef7ee;
+        font-weight: bold;
+    }
+
+    .yellow-cell {
+        background: yellow;
+        font-weight: bold;
+        text-align: center;
+    }
+
+    .signature-box {
+        height: 70px;
+        vertical-align: bottom !important;
+    }
+
+    .sig-img {
+        max-width: 220px;
+        max-height: 55px;
+        display: block;
+        margin-top: 4px;
+    }
+
+    .page-break {
+        page-break-before: always;
+    }
+
+    .small {
+        font-size: 9pt;
+    }
+
+    .large-text {
+        font-size: 11pt;
+    }
+
+    .paragraph {
+        padding: 7px 10px !important;
+        line-height: 1.4;
+    }
+
+    .number-col {
+        width: 7%;
+        font-weight: bold;
+        text-align: center;
+    }
+
+    .description-col {
+        width: 63%;
+    }
+
+    .currency-col {
+        width: 5%;
+        text-align: center;
+    }
+
+    .value-col {
+        width: 15%;
+        text-align: right;
+        font-weight: bold;
+    }
+
+    .unit-col {
+        width: 15%;
+        text-align: center;
+        font-weight: bold;
+        background: #eef7ee;
+    }
+</style>
+{#- ==================== CO-APPLICANT LOOKUP ==================== -#}
+{#- Uses Jinja helpers registered via hooks.py → comfort_homes.print_helpers -#}
+{% set co_app = get_co_applicant(doc.name) %}
+{% set has_co_applicant = co_app is not none %}
+{% set joint_name = joint_name(doc.applicant_name, co_app) %}
+
+<!-- ========================================================= -->
+<!-- FORM 2 - PAGE 11 -->
+<!-- SUMMARY OF FINANCIAL OBLIGATIONS -->
+<!-- ========================================================= -->
+<table class="form2-table">
+<tr>
+<td class="title" colspan="6">
+            SUMMARY OF FINANCIAL OBLIGATIONS UNDER PROPOSED HIRE PURCHASE AGREEMENT
+        </td>
+</tr>
+<tr>
+<td class="center bold" colspan="6">
+<i>(Section 157 of the Consumer Credit Act 1999)</i>
+</td>
+</tr>
+<tr>
+<td class="paragraph" colspan="6">
+            This document contains a short description of the goods comprised hire purchase agreement
+            and a summary of your financial obligations under it. Note that the following is subject
+            to variation prior to the contract being entered.
+        </td>
+</tr>
+<tr class="data-row">
+<td class="number-col">
+            1)
+        </td>
+<td class="bold" colspan="5">
+            Particulars of Goods
+        </td>
+</tr>
+</table>
+<!-- GOODS SUMMARY -->
+<table class="goods-table data-table">
+<tr class="goods-heading">
+<td class="goods-name">Description of Goods</td>
+<td class="goods-check"></td>
+<td class="goods-qty">Qty</td>
+<td class="goods-price">Unit Price</td>
+</tr>
+
+    {% for item in (doc.custom_flexi_purchase_items or [])[:8] %}
+
+    <tr>
+<td class="goods-name">{{ item.product_description or "" }}</td>
+<td class="goods-check">X</td>
+<td class="goods-qty">{{ item.quantity if item.quantity is not none else "" }}</td>
+<td class="goods-price">{{ "{:,.2f}".format(item.unit_price or 0) }}</td>
+</tr>
+
+    {% endfor %}
+
+    {% for i in range(8 - ((doc.custom_flexi_purchase_items or [])|length)) %}
+    <tr>
+<td class="goods-name"></td>
+<td class="goods-check">X</td>
+<td class="goods-qty"></td>
+<td class="goods-price"></td>
+</tr>
+    {% endfor %}
+
+</table>
+<table class="form2-table">
+<tr class="data-row">
+<td class="number-col">
+            2)
+        </td>
+<td colspan="5">
+            State whether goods sold is New.
+        </td>
+</tr>
+<tr class="data-row">
+<td class="number-col">
+            3)
+        </td>
+<td colspan="2">
+            Address where goods will be kept
+        </td>
+<td class="bold" colspan="3">
+            {{ doc.address_line_1 or "" }}
+            {% if doc.address_line_2 %}, {{ doc.address_line_2 }}{% endif %}
+            {% if doc.city %}, {{ doc.city }}{% endif %}
+            {% if doc.suburb %}, {{ doc.suburb }}{% endif %}
+            {% if doc.custom_province %}, {{ doc.custom_province }}{% endif %}
+        </td>
+</tr>
+<tr>
+<td class="section-title green-cell" colspan="6">
+            Particulars related to Financial Obligations
+        </td>
+</tr>
+<tr class="data-row">
+<td class="number-col">4)</td>
+<td colspan="3">Cash Price of Goods</td>
+<td class="currency-col">$</td>
+<td class="value-col">
+            {{ "{:,.2f}".format(doc.custom_flexi_cash_price or 0) }}
+        </td>
+</tr>
+<tr class="data-row">
+<td class="number-col">5)</td>
+<td colspan="3">
+            Amount to be paid before entering into the hire purchase agreement
+        </td>
+<td class="currency-col">$</td>
+<td class="value-col">
+            {{ "{:,.2f}".format(doc.custom_flexi_deposit_amount or 0) }}
+        </td>
+</tr>
+<tr class="data-row">
+<td class="number-col">6)</td>
+<td colspan="3">
+            Cash price of Goods after Deposit
+        </td>
+<td class="currency-col">$</td>
+<td class="value-col">
+            {{ "{:,.2f}".format(doc.custom_flexi_value_after_deposit or 0) }}
+        </td>
+</tr>
+<tr class="data-row">
+<td class="number-col">7)</td>
+<td colspan="3">
+            Document fees
+        </td>
+<td class="currency-col">$</td>
+<td class="value-col">
+            {{ "{:,.2f}".format(doc.custom_flexi_documentation_fee or 0) }}
+        </td>
+</tr>
+<tr class="data-row">
+<td class="number-col">8)</td>
+<td colspan="3">
+            Administration fees
+        </td>
+<td class="currency-col">$</td>
+<td class="value-col">
+            {{ "{:,.2f}".format(doc.custom_flexi_admin_fee or 0) }}
+        </td>
+</tr>
+<tr class="data-row">
+<td class="number-col">9)</td>
+<td colspan="3">
+            Net Amount Financed
+        </td>
+<td class="currency-col">$</td>
+<td class="value-col">
+            {{ "{:,.2f}".format(doc.custom_flexi_net_amount_financed or 0) }}
+        </td>
+</tr>
+<tr class="data-row">
+<td class="number-col">10)</td>
+<td colspan="3">
+            Total Amount of Term Charges (Interest)
+        </td>
+<td class="currency-col">$</td>
+<td class="value-col">
+            {{ "{:,.2f}".format(doc.custom_flexi_term_charges or 0) }}
+        </td>
+</tr>
+<tr class="data-row">
+<td class="number-col">11)</td>
+<td colspan="3">
+            Balance Payable under the agreement after deposit
+        </td>
+<td class="currency-col">$</td>
+<td class="value-col">
+            {{ "{:,.2f}".format(doc.custom_flexi_total_receivable or 0) }}
+        </td>
+</tr>
+<tr>
+<td class="section-title" colspan="6">
+            Particulars relating to Payments
+        </td>
+</tr>
+<tr class="data-row">
+<td class="number-col">12)</td>
+<td colspan="3">
+            Duration of Hire Purchase Agreement
+        </td>
+<td class="value-col">
+            {{ doc.custom_flexi_term_months or "" }}
+        </td>
+<td class="unit-col">
+            MONTHS
+        </td>
+</tr>
+<tr class="data-row">
+<td class="number-col">13)</td>
+<td colspan="3">
+            Number of installments
+        </td>
+<td class="yellow-cell">
+            {{ {"Weekly": doc.custom_flexi_weekly_instalments, "Fortnightly": doc.custom_flexi_fortnightly_instalments, "Bi-monthly": doc.custom_flexi_bimonthly_instalments, "Monthly": doc.custom_flexi_monthly_instalments}.get(doc.custom_flexi_payment_period, doc.repayment_periods) or "" }}
+        </td>
+<td class="unit-col">
+            {{ doc.custom_flexi_payment_period or "" }}
+        </td>
+</tr>
+<tr class="data-row">
+<td class="number-col">14)</td>
+<td>
+            Amount of each installment
+        </td>
+<td class="currency-col">$</td>
+<td class="value-col">
+            {{ "{:,.2f}".format({"Weekly": doc.custom_flexi_weekly_instalment_amount, "Fortnightly": doc.custom_flexi_fortnightly_instalment_amount, "Bi-monthly": doc.custom_flexi_bimonthly_instalment_amount, "Monthly": doc.custom_flexi_monthly_instalment_amount}.get(doc.custom_flexi_payment_period, doc.repayment_amount) or 0) }}
+        </td>
+<td class="center bold">
+            {{ doc.custom_flexi_payment_period or "" }}
+        </td>
+<td class="unit-col">
+            {{ doc.custom_mode_of_payment or "" }}
+        </td>
+</tr>
+<tr>
+<td class="bold" colspan="2">
+            PROPOSED HIRER'S NAME
+        </td>
+<td class="bold" colspan="4">
+            {{ joint_name }}
+        </td>
+</tr>
+<tr class="data-row">
+<td class="number-col">15)</td>
+<td class="bold" colspan="5">
+            ANNUAL INTEREST PERCENTAGE RATE:
+        </td>
+</tr>
+<tr>
+<td></td>
+<td colspan="5">
+            The annual Percentage rate is
+            <b>{{ doc.custom_flexi_interest_rate or "" }}%</b>
+            which is fixed for the term of the contract but may vary in the event of
+            refinancing or restructuring of account which will be upon by the owner and the hirer.
+        </td>
+</tr>
+<tr class="data-row">
+<td class="number-col">16)</td>
+<td class="bold green-cell" colspan="5">
+            CALCULATION OF INTEREST CHARGES:
+        </td>
+</tr>
+<tr>
+<td></td>
+<td colspan="5">
+            Additional Sum
+        </td>
+</tr>
+<tr>
+<td></td>
+<td colspan="5">
+            The hirer shall pay the said sum calculated at
+            <b>{{ doc.custom_flexi_interest_rate or "" }}%</b>
+            per annum, on the net amount financed after deposit.
+        </td>
+</tr>
+<tr>
+<td></td>
+<td colspan="5">
+            The said sum will be charged at the beginning of the contract.
+        </td>
+</tr>
+</table>
+<div style=""></div>
+<!-- ========================================================= -->
+<!-- FORM 2 - PAGE 11/12 -->
+<!-- REMAINING TERMS -->
+<!-- ========================================================= -->
+<table class="form2-table">
+<tr class="data-row">
+<td class="number-col">17)</td>
+<td class="bold" colspan="5">
+            REPAYMENT
+        </td>
+</tr>
+<tr>
+<td></td>
+<td class="paragraph" colspan="5">
+            The repayment amount will be arrived at by dividing the
+            “total amount payable by the number of Hire Rentals, which in the time
+            represents the number of months in the term of the contract”.
+        </td>
+</tr>
+<tr class="data-row">
+<td class="number-col">18)</td>
+<td class="bold" colspan="5">
+            CREDIT FEES AND CHARGES
+        </td>
+</tr>
+<tr>
+<td></td>
+<td colspan="2">
+            Document fee payable shall be $
+        </td>
+<td class="value-col">
+            {{ "{:,.2f}".format(doc.custom_flexi_documentation_fee or 0) }}
+        </td>
+<td colspan="2">
+            Hire Purchase Agreement.
+        </td>
+</tr>
+<tr>
+<td></td>
+<td colspan="2">
+            The stamp duty payable shall be $
+        </td>
+<td class="value-col">
+            {{ "{:,.2f}".format(doc.custom_flexi_stamp_duty_fee or 0) }}
+        </td>
+<td colspan="2">
+            per Hire Purchase Agreement.
+        </td>
+</tr>
+<tr>
+<td class="paragraph" colspan="6">
+            The Hirer shall be liable for the payment of all applicable stamp duty or any other statutory
+            charges in respect of the Hire Purchase Agreement.
+        </td>
+</tr>
+<tr class="data-row">
+<td class="number-col">19)</td>
+<td class="bold" colspan="5">
+            CHANGES AFFECTING INTEREST FEES AND CHARGES
+        </td>
+</tr>
+<tr>
+<td></td>
+<td class="paragraph" colspan="5">
+            If the annual percentage rate or rates or the amount or frequency of payment of a credit fee
+            or charge or installment payable under the contract changes, or a new credit fee or any tax,
+            duty or other statutory charges that are imposed, COMFORT HOME FURNISHING PTE LIMITED
+            TRADING AS FLEXIBLE PURCHASE shall notify the hirer of such changes in writing or publish
+            the notice in a daily newspaper, 30 days prior to implementation of such charges.
+        </td>
+</tr>
+<tr>
+<td></td>
+<td class="paragraph" colspan="5">
+            COMFORT HOME FURNISHING PTE LIMITED TRADING AS FLEXIBLE PURCHASE, may implement changes
+            in above without the consent of the hirer after due notice.
+        </td>
+</tr>
+<tr class="data-row">
+<td class="number-col">20)</td>
+<td class="bold" colspan="5">
+            ENFORCEMENT EXPENSES
+        </td>
+</tr>
+</table>
+<table class="form2-table">
+<tr>
+<td style="width:20%;">Reminder Letter</td>
+<td colspan="5">
+            Fixed $2.00 for accounts in arrears
+        </td>
+</tr>
+<tr>
+<td>Demand Notice</td>
+<td colspan="5">
+            $25.00 per demand
+        </td>
+</tr>
+<tr>
+<td>Bailiff Cost</td>
+<td colspan="5">
+            Minimum of $44.00 per visit or as determined by COMFORT HOME FURNISHING PTE LIMITED
+            TRADING AS FLEXIBLE PURCHASE, in line with the arrears amount, the hirer's location,
+            and other related charges.
+        </td>
+</tr>
+<tr>
+<td>Dishonoured cheque Fee</td>
+<td colspan="5">
+            Fixed at $25.00 for administrative costs relating to cheque dishonour.
+        </td>
+</tr>
+<tr>
+<td>Travelling Cost</td>
+<td colspan="5">
+            Account will be debited for all relevant (boat, car, plane) costs incurred for enforcement
+            or debt recovery.
+        </td>
+</tr>
+<tr>
+<td>Telephone Cost</td>
+<td colspan="5">
+            $2.00 per call on mobile and $1.00 per call on landline
+        </td>
+</tr>
+<tr>
+<td>Text Charge</td>
+<td colspan="5">
+            50 cents per text
+        </td>
+</tr>
+</table>
+<table class="form2-table">
+<tr class="data-row">
+<td class="number-col">21)</td>
+<td class="bold" colspan="5">
+            ADMIN FEE
+        </td>
+</tr>
+<tr>
+<td></td>
+<td colspan="5">
+            2.5% admin fee shall be charged on the total amount as per the quotation.
+        </td>
+</tr>
+<tr class="data-row">
+<td class="number-col">22)</td>
+<td class="bold" colspan="5">
+            STATEMENT OF ACCOUNT
+        </td>
+</tr>
+<tr>
+<td></td>
+<td colspan="5">
+            $2.00 per page per print.
+        </td>
+</tr>
+<tr class="data-row">
+<td class="number-col">23)</td>
+<td class="bold" colspan="5">
+            SECURITY OF ACCOUNT
+        </td>
+</tr>
+<tr>
+<td></td>
+<td colspan="5">
+            The credit provider reserves the right to obtain a Security of Guarantee in respect to this
+            agreement/contract
+        </td>
+</tr>
+<tr class="data-row">
+<td class="number-col">24)</td>
+<td class="bold" colspan="5">
+            OTHER INFORMATION
+        </td>
+</tr>
+<tr>
+<td></td>
+<td colspan="5">
+            The hirer will promptly notify the credit provider of the following:
+        </td>
+</tr>
+<tr>
+<td></td>
+<td colspan="5">
+            a) Change is work and / or residential address.
+        </td>
+</tr>
+<tr>
+<td></td>
+<td colspan="5">
+            b) Change in telephone contact.
+        </td>
+</tr>
+<tr>
+<td></td>
+<td colspan="5">
+            c) Absence from the country for more than one month.
+        </td>
+</tr>
+<tr>
+<td></td>
+<td colspan="5">
+            d) Hardship that may affect their repayment ability as a result of:
+        </td>
+</tr>
+<tr>
+<td></td>
+<td colspan="5">
+            • Redundancy
+        </td>
+</tr>
+<tr>
+<td></td>
+<td colspan="5">
+            • Termination of Employment
+        </td>
+</tr>
+<tr>
+<td></td>
+<td colspan="5">
+            • Illness
+        </td>
+</tr>
+<tr class="data-row">
+<td class="number-col">25)</td>
+<td class="bold" colspan="5">
+            INSURANCE OPTION
+        </td>
+</tr>
+<tr>
+<td></td>
+<td class="paragraph" colspan="5">
+            The Hirer may insure the chattels with the Certificate of Cover stating the terms and
+            conditions thereof being provided to the owner for their records.
+        </td>
+</tr>
+</table>
+<div style=""></div>
+<!-- ========================================================= -->
+<!-- FORM 2 - PAGE 12 -->
+<!-- ACKNOWLEDGEMENT -->
+<!-- ========================================================= -->
+<table class="form2-table">
+<tr>
+<td class="subtitle" colspan="6">
+            26) ACKNOWLEDGEMENT
+        </td>
+</tr>
+<tr>
+<td class="paragraph large-text" colspan="6">
+            I/We
+            <b>{{ joint_name }}</b>
+            of
+            <b>
+                {{ doc.address_line_1 or "" }}
+                {% if doc.address_line_2 %}, {{ doc.address_line_2 }}{% endif %}
+                {% if doc.city %}, {{ doc.city }}{% endif %}
+                {% if doc.suburb %}, {{ doc.suburb }}{% endif %}
+                {% if doc.custom_province %}, {{ doc.custom_province }}{% endif %}
+            </b>
+            hereunder acknowledge that I/ We have been informed of the proposed Hire Purchase contract
+            and that I have received a summary of my/our financial obligation under the same contract
+            per the specifications of the Consumer Credit Act.
+        </td>
+</tr>
+<tr>
+<td colspan="6" style="height:100px;"></td>
+</tr>
+<tr>
+<td class="bold" colspan="{% if has_co_applicant %}2{% else %}3{% endif %}">
+            Hirer's Signature
+        </td>
+{%- if has_co_applicant %}
+<td class="bold" colspan="2">
+            Co-Hirer's Signature
+        </td>
+{%- endif %}
+<td class="bold" colspan="2">Signed for Comfort Home Furnishing</td>
+</tr>
+<tr>
+<td colspan="{% if has_co_applicant %}2{% else %}3{% endif %}" style="height:70px;">
+            {% if doc.custom_applicant_signature %}
+                <img class="sig-img" src="{{ doc.custom_applicant_signature }}"/>
+            {% endif %}
+        </td>
+{%- if has_co_applicant %}
+<td colspan="2" style="height:70px;">
+            {% if co_applicant_signature(co_app) %}
+                <img class="sig-img" src="{{ co_applicant_signature(co_app) }}"/>
+            {% endif %}
+        </td>
+{%- endif %}
+<td colspan="2">
+            {% if doc.company_representative_signature %}
+                <img class="sig-img" src="{{ doc.company_representative_signature }}"/>
+            {% endif %}
+            {% if doc.company_representative_name %}<br/>{{ doc.company_representative_name }}{% endif %}
+        </td>
+</tr>
+<tr>
+<td colspan="{% if has_co_applicant %}2{% else %}3{% endif %}">Date: {{ frappe.utils.formatdate(doc.hirer_signature_date, "dd-mm-yyyy") if doc.hirer_signature_date else "" }}</td>
+{%- if has_co_applicant %}
+<td colspan="2">Date: {{ co_applicant_signature_date(co_app) }}</td>
+{%- endif %}
+<td colspan="2">Date: {{ frappe.utils.formatdate(doc.company_representative_date, "dd-mm-yyyy") if doc.company_representative_date else "" }}</td>
+</tr>
+<tr>
+<td class="center bold" colspan="6">
+            Comfort Home Furnishing Pte Ltd T/A FLEXIBLE PURCHASE
+        </td>
+</tr>
+</table>
+<div style=""></div>
+<!-- ========================================================= -->
+

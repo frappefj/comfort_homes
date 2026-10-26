@@ -1,0 +1,398 @@
+app_name = "comfort_homes"
+app_title = "Comfort Homes"
+app_publisher = "Comfort Home Furnishing"
+app_description = "Comfort Homes lending customisations"
+app_email = "support@comforthomefurnishing.com"
+app_license = "mit"
+
+# The Loan Application Web Form is database-backed, so its client script is
+# installed idempotently by ``webform_setup.inject_loan_application_duplicate_check``.
+# Do not also load that calculation bridge as a Web Form/website asset: multiple
+# copies register competing Currency input listeners and can corrupt a value
+# while a customer is typing it.
+web_include_js = ["public/js/loan_application_branch_filter.js"]
+
+doctype_js = {
+	"Loan": "public/js/loan_temporary_repayment_tenure.js",
+	"Loan Application": [
+		"public/js/loan_application_branch_filter.js",
+		"public/js/loan_application_co_applicant.js",
+		"public/js/loan_application_workflow_notes.js",
+		"public/js/loan_application_signed_pack.js",
+	]
+}
+override_doctype_dashboards = {
+	"Loan Application": "comfort_homes.loan_mapping.get_loan_application_dashboard_data",
+}
+after_migrate = [
+	"comfort_homes.webform_setup.inject_loan_application_duplicate_check",
+	"comfort_homes.co_applicant.ensure_loan_application_fields",
+	"comfort_homes.co_applicant.configure_co_applicant_profile",
+	"comfort_homes.signed_pack.normalize_customer_print_formats",
+    # Phase 2: Sync standalone print format HTML files into database records
+    "comfort_homes.sync_print_formats.sync_print_format_html",
+]
+# A first-time app installation performs fixture sync but not an ordinary site
+# migration.  Apply the same idempotent Web Form setup after either path.
+after_install = "comfort_homes.webform_setup.setup_web_form_and_print_formats"
+after_sync = "comfort_homes.webform_setup.setup_web_form_and_print_formats"
+
+# Apps
+# ------------------
+
+required_apps = ["frappe", "erpnext", "lending"]
+
+fixtures = [
+	{
+		"dt": "Custom Field",
+		# Flexi extends Lending's standard DocTypes through Custom Field records.
+		# Keeping the complete set here makes a fresh installation reproduce the
+		# same Loan Application layout and database columns as the working site.
+		"filters": [["dt", "in", ["Loan Application", "Loan", "Loan Disbursement", "Sales Invoice", "Purchase Order", "Purchase Invoice", "Customer", "Contact"]]],
+	},
+	{
+		"dt": "Property Setter",
+		"filters": [["name", "in", [
+			"Loan Application-custom_flexi_payment_period-options",
+			"Loan Application-applicant_name-label",
+			"Loan Application-applicant_name-insert_after",
+		]]],
+	},
+	{
+		"dt": "Client Script",
+		"filters": [["name", "in", [
+		"Flexi Loan Bank Reconciliation",
+		"Flexi Customer Document Signing",
+		"Flexi Customer Document Signing Order",
+		"Comfort Homes Loan Application Deposit Invoice",
+	]]],
+	},
+	{
+		"dt": "Server Script",
+		"filters": [["name", "in", [
+			"Flexi Default Customer Agreements",
+			"Dynamic Laon P",
+			"FLEXI DOCUMENT SYNC",
+			"FLEXI DOCUMENT CUSTOMER SIGN",
+			"FLEXI DOCUMENT DIRECTOR SIGN",
+		]]],
+	},
+	{
+		"dt": "Loan Document Template",
+		"filters": [["document_code", "=", "REQ"]],
+	},
+	{
+		# The six customer documents are physically printed, signed, and scanned.
+		# Store the actual layouts in the app so a restore does not replace them
+		# with unrelated or stale print formats.
+		"dt": "Print Format",
+		"filters": [["name", "in", [
+			"Hire Purchase Agreement",
+			"Schedule 1",
+			"Form 1",
+			"Form 2",
+			"Summary of Financial Obligations",
+			"Consent Form",
+            "Assessment Sheet",  # Phase 5: Combined assessment with co-applicant
+		]]],
+	},
+	{
+		# The published public application is an app fixture, not a site-only
+		# Web Form.  Fresh sites therefore receive the same five-step form.
+		"dt": "Web Form",
+		"filters": [["name", "=", "loan-application-new"]],
+	},
+	{
+		"dt": "Workflow",
+		"filters": [["name", "=", "Loan Application Workflow-1"]],
+	},
+]
+
+doc_events = {
+	"Loan": {
+		"before_validate": [
+			"comfort_homes.loan_mapping.apply_loan_application_values",
+			"comfort_homes.loan_mapping.apply_temporary_repayment_tenure",
+		]
+	},
+	"Loan Disbursement": {
+		"before_validate": [
+			"comfort_homes.loan_mapping.apply_loan_values_to_disbursement",
+			"comfort_homes.loan_mapping.apply_temporary_repayment_tenure_to_disbursement",
+		]
+	},
+	"Purchase Order": {
+		"before_save": "comfort_homes.loan_mapping.apply_loan_application_purchase_values",
+	},
+	"Purchase Invoice": {
+		"before_validate": "comfort_homes.loan_mapping.apply_purchase_invoice_loan_application",
+	},
+	"Loan Application": {
+		"before_insert": "comfort_homes.loan_application_workflow.validate_public_application_not_existing_customer",
+		"before_validate": [
+			"comfort_homes.loan_application_workflow.calculate_financials",
+			"comfort_homes.co_applicant.validate_existing_co_applicant",
+			"comfort_homes.loan_application_workflow.validate_branch_location",
+			"comfort_homes.loan_application_workflow.validate_deposit_invoice",
+		],
+	},
+	"Co-Applicant": {
+		"after_insert": "comfort_homes.co_applicant.sync_linked_loan_application",
+		"on_update": "comfort_homes.co_applicant.sync_linked_loan_application",
+	},
+}
+
+# Each item in the list will be shown as an app in the apps page
+# add_to_apps_screen = [
+# 	{
+# 		"name": "comfort_homes",
+# 		"logo": "/assets/comfort_homes/logo.png",
+# 		"title": "Comfort Homes",
+# 		"route": "/comfort_homes",
+# 		"has_permission": "comfort_homes.api.permission.has_app_permission"
+# 	}
+# ]
+
+# Includes in <head>
+# ------------------
+
+# include js, css files in header of desk.html
+# app_include_css = "/assets/comfort_homes/css/comfort_homes.css"
+# app_include_js = "/assets/comfort_homes/js/comfort_homes.js"
+
+# include js, css files in header of web template
+# web_include_css = "/assets/comfort_homes/css/comfort_homes.css"
+# web_include_js = "/assets/comfort_homes/js/comfort_homes.js"
+
+# include custom scss in every website theme (without file extension ".scss")
+# website_theme_scss = "comfort_homes/public/scss/website"
+
+# include js, css files in header of web form
+# webform_include_js = {"doctype": "public/js/doctype.js"}
+# webform_include_css = {"doctype": "public/css/doctype.css"}
+
+# include js in page
+# page_js = {"page" : "public/js/file.js"}
+
+# include js in doctype views
+# doctype_js = {"doctype" : "public/js/doctype.js"}
+# doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
+# doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
+# doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
+
+# Svg Icons
+# ------------------
+# include app icons in desk
+# app_include_icons = "comfort_homes/public/icons.svg"
+
+# Home Pages
+# ----------
+
+# application home page (will override Website Settings)
+# home_page = "login"
+
+# website user home page (by Role)
+# role_home_page = {
+# 	"Role": "home_page"
+# }
+
+# Generators
+# ----------
+
+# automatically create page for each record of this doctype
+# website_generators = ["Web Page"]
+
+# automatically load and sync documents of this doctype from downstream apps
+# importable_doctypes = [doctype_1]
+
+# Jinja
+# ----------
+
+# add methods and filters to jinja environment
+# Jinja template helpers — available in all Print Formats by function name.
+# Phase 1: Co-applicant helpers (get_co_applicant, joint_name, etc.)
+jinja = {
+    "methods": "comfort_homes.print_helpers",
+}
+
+
+# Installation
+# ------------
+
+before_install = "comfort_homes.webform_setup.ensure_install_schema"
+# Existing sites run `migrate`, not `install_app`.  This must execute before
+# fixture sync so data fixtures never reference an absent custom DocType.
+before_migrate = "comfort_homes.webform_setup.ensure_install_schema"
+
+# Uninstallation
+# ------------
+
+# before_uninstall = "comfort_homes.uninstall.before_uninstall"
+# after_uninstall = "comfort_homes.uninstall.after_uninstall"
+
+# Integration Setup
+# ------------------
+# To set up dependencies/integrations with other apps
+# Name of the app being installed is passed as an argument
+
+# before_app_install = "comfort_homes.utils.before_app_install"
+# after_app_install = "comfort_homes.utils.after_app_install"
+
+# Integration Cleanup
+# -------------------
+# To clean up dependencies/integrations with other apps
+# Name of the app being uninstalled is passed as an argument
+
+# before_app_uninstall = "comfort_homes.utils.before_app_uninstall"
+# after_app_uninstall = "comfort_homes.utils.after_app_uninstall"
+
+# Build
+# ------------------
+# To hook into the build process
+
+# after_build = "comfort_homes.build.after_build"
+
+# Desk Notifications
+# ------------------
+# See frappe.core.notifications.get_notification_config
+
+# notification_config = "comfort_homes.notifications.get_notification_config"
+
+# Permissions
+# -----------
+# Permissions evaluated in scripted ways
+
+# permission_query_conditions = {
+# 	"Event": "frappe.desk.doctype.event.event.get_permission_query_conditions",
+# }
+#
+# has_permission = {
+# 	"Event": "frappe.desk.doctype.event.event.has_permission",
+# }
+
+# Document Events
+# ---------------
+# Hook on document methods and events
+
+# doc_events = {
+# 	"*": {
+# 		"on_update": "method",
+# 		"on_cancel": "method",
+# 		"on_trash": "method"
+# 	}
+# }
+
+# Scheduled Tasks
+# ---------------
+
+# scheduler_events = {
+# 	"all": [
+# 		"comfort_homes.tasks.all"
+# 	],
+# 	"daily": [
+# 		"comfort_homes.tasks.daily"
+# 	],
+# 	"hourly": [
+# 		"comfort_homes.tasks.hourly"
+# 	],
+# 	"weekly": [
+# 		"comfort_homes.tasks.weekly"
+# 	],
+# 	"monthly": [
+# 		"comfort_homes.tasks.monthly"
+# 	],
+# }
+
+# Testing
+# -------
+
+# before_tests = "comfort_homes.install.before_tests"
+
+# Extend DocType Class
+# ------------------------------
+#
+# Specify custom mixins to extend the standard doctype controller.
+# extend_doctype_class = {
+# 	"Task": "comfort_homes.custom.task.CustomTaskMixin"
+# }
+
+# Overriding Methods
+# ------------------------------
+#
+# Phase 3: Python signing methods replace the Server Script sandbox code.
+# The original Server Script fixtures can stay in place (disabled or active);
+# these overrides take precedence when the comfort_homes app is installed.
+override_whitelisted_methods = {
+    "hp_agreement_customer_sign": "comfort_homes.agreement_signing.hp_agreement_customer_sign",
+    "hp_agreement_director_sign": "comfort_homes.agreement_signing.hp_agreement_director_sign",
+    "hp_agreement_preview": "comfort_homes.agreement_signing.hp_agreement_preview",
+}
+#
+# each overriding function accepts a `data` argument;
+# generated from the base implementation of the doctype dashboard,
+# along with any modifications made in other Frappe apps
+# override_doctype_dashboards = {
+# 	"Task": "comfort_homes.task.get_dashboard_data"
+# }
+
+# exempt linked doctypes from being automatically cancelled
+#
+# auto_cancel_exempted_doctypes = ["Auto Repeat"]
+
+# Ignore links to specified DocTypes when deleting documents
+# -----------------------------------------------------------
+
+# ignore_links_on_delete = ["Communication", "ToDo"]
+
+# Request Events
+# ----------------
+# before_request = ["comfort_homes.utils.before_request"]
+# after_request = ["comfort_homes.utils.after_request"]
+
+# Job Events
+# ----------
+# before_job = ["comfort_homes.utils.before_job"]
+# after_job = ["comfort_homes.utils.after_job"]
+
+# User Data Protection
+# --------------------
+
+# user_data_fields = [
+# 	{
+# 		"doctype": "{doctype_1}",
+# 		"filter_by": "{filter_by}",
+# 		"redact_fields": ["{field_1}", "{field_2}"],
+# 		"partial": 1,
+# 	},
+# 	{
+# 		"doctype": "{doctype_2}",
+# 		"filter_by": "{filter_by}",
+# 		"partial": 1,
+# 	},
+# 	{
+# 		"doctype": "{doctype_3}",
+# 		"strict": False,
+# 	},
+# 	{
+# 		"doctype": "{doctype_4}"
+# 	}
+# ]
+
+# Authentication and authorization
+# --------------------------------
+
+# auth_hooks = [
+# 	"comfort_homes.auth.validate"
+# ]
+
+# Automatically update python controller files with type annotations for this app.
+# export_python_type_annotations = True
+
+# default_log_clearing_doctypes = {
+# 	"Logging DocType Name": 30  # days to retain logs
+# }
+
+# Translation
+# ------------
+# List of apps whose translatable strings should be excluded from this app's translations.
+# ignore_translatable_strings_from = []
