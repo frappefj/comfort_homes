@@ -710,11 +710,25 @@ def inject_loan_application_duplicate_check():
 
 
 def setup_web_form_and_print_formats():
-	"""Apply idempotent public-form and print-format repairs after fixture sync."""
-	inject_loan_application_duplicate_check()
-	from comfort_homes.signed_pack import normalize_customer_print_formats
+	"""Apply idempotent public-form and app-owned print-format repairs.
 
+	The legal customer-document templates are source-controlled in this app.
+	Sync them here (after install and every fixture sync) so a restored site does
+	not continue rendering an earlier database-only Test format.
+	"""
+	inject_loan_application_duplicate_check()
+	from comfort_homes.signed_pack import (
+		add_assessment_document_to_existing_applications,
+		normalize_customer_print_formats,
+		sync_reviewed_print_formats,
+	)
+
+	sync_reviewed_print_formats()
 	normalize_customer_print_formats()
+	# Existing applications pre-date the seventh, non-signing Assessment row.
+	# The backfill is idempotent: it creates only that missing row and never
+	# changes any existing document or signing status.
+	add_assessment_document_to_existing_applications()
 
 
 def _repair_legacy_number_parsing(script):

@@ -25,24 +25,55 @@ override_doctype_dashboards = {
 	"Loan Application": "comfort_homes.loan_mapping.get_loan_application_dashboard_data",
 }
 after_migrate = [
-	"comfort_homes.webform_setup.inject_loan_application_duplicate_check",
 	"comfort_homes.co_applicant.ensure_loan_application_fields",
 	"comfort_homes.co_applicant.configure_co_applicant_profile",
-	"comfort_homes.signed_pack.normalize_customer_print_formats",
-    # Phase 2: Sync standalone print format HTML files into database records
-    "comfort_homes.sync_print_formats.sync_print_format_html",
+	# This is deliberately the full app-owned setup, not merely the legacy CSS
+	# cleanup.  It syncs all seven reviewed formats and backfills the non-signing
+	# Assessment document row on existing Loan Applications.
+	"comfort_homes.webform_setup.setup_web_form_and_print_formats",
 ]
 # A first-time app installation performs fixture sync but not an ordinary site
 # migration.  Apply the same idempotent Web Form setup after either path.
 after_install = "comfort_homes.webform_setup.setup_web_form_and_print_formats"
 after_sync = "comfort_homes.webform_setup.setup_web_form_and_print_formats"
 
+# Customer-document Jinja helpers.  They expose linked Co-Applicant details
+# only where a print format explicitly requests them.
+jinja = {
+	"methods": "comfort_homes.print_helpers",
+}
+
 # Apps
 # ------------------
 
 required_apps = ["frappe", "erpnext", "lending"]
 
+# ---------------------------------------------------------------------------
+# Path B (Native-Aligned) architecture notes
+# ---------------------------------------------------------------------------
+# Interest:   Native daily accrual — no deferral account, no custom release.
+# Fees:       Native Loan Charges on each product — auto Sales Invoice.
+# VAT:        Item Tax Template on Documentation Fee charge (12.5%).
+# Penalty:    Custom (this app) — 2.2% per overdue instalment via scheduler.
+# Statement:  Custom report — HP Customer Statement (gross customer view).
+# Deposit:    Sales Invoice (Loan Deposit item → 2010 Advance Payment).
+# ---------------------------------------------------------------------------
+
 fixtures = [
+	{
+		# The approved seven customer-document layouts are version controlled,
+		# rather than relying on the HTML stored in one site's database.
+		"dt": "Print Format",
+		"filters": [["name", "in", [
+			"Test Agreement",
+			"Schedule 1 Test",
+			"Form 1 Test",
+			"Form2 Test",
+			"Summary Test",
+			"Consent Test",
+			"Application Print WIP",
+		]]],
+	},
 	{
 		"dt": "Custom Field",
 		# Flexi extends Lending's standard DocTypes through Custom Field records.
@@ -79,22 +110,7 @@ fixtures = [
 	},
 	{
 		"dt": "Loan Document Template",
-		"filters": [["document_code", "=", "REQ"]],
-	},
-	{
-		# The six customer documents are physically printed, signed, and scanned.
-		# Store the actual layouts in the app so a restore does not replace them
-		# with unrelated or stale print formats.
-		"dt": "Print Format",
-		"filters": [["name", "in", [
-			"Hire Purchase Agreement",
-			"Schedule 1",
-			"Form 1",
-			"Form 2",
-			"Summary of Financial Obligations",
-			"Consent Form",
-            "Assessment Sheet",  # Phase 5: Combined assessment with co-applicant
-		]]],
+		"filters": [["document_code", "in", ["REQ", "APPLICATION-ASSESSMENT"]]],
 	},
 	{
 		# The published public application is an app fixture, not a site-only
@@ -130,6 +146,7 @@ doc_events = {
 	"Loan Application": {
 		"before_insert": "comfort_homes.loan_application_workflow.validate_public_application_not_existing_customer",
 		"before_validate": [
+			"comfort_homes.signed_pack.ensure_assessment_customer_document",
 			"comfort_homes.loan_application_workflow.calculate_financials",
 			"comfort_homes.co_applicant.validate_existing_co_applicant",
 			"comfort_homes.loan_application_workflow.validate_branch_location",
@@ -209,12 +226,10 @@ doc_events = {
 # ----------
 
 # add methods and filters to jinja environment
-# Jinja template helpers — available in all Print Formats by function name.
-# Phase 1: Co-applicant helpers (get_co_applicant, joint_name, etc.)
-jinja = {
-    "methods": "comfort_homes.print_helpers",
-}
-
+# jinja = {
+# 	"methods": "comfort_homes.utils.jinja_methods",
+# 	"filters": "comfort_homes.utils.jinja_filters"
+# }
 
 # Installation
 # ------------
@@ -284,24 +299,14 @@ before_migrate = "comfort_homes.webform_setup.ensure_install_schema"
 
 # Scheduled Tasks
 # ---------------
-
-# scheduler_events = {
-# 	"all": [
-# 		"comfort_homes.tasks.all"
-# 	],
-# 	"daily": [
-# 		"comfort_homes.tasks.daily"
-# 	],
-# 	"hourly": [
-# 		"comfort_homes.tasks.hourly"
-# 	],
-# 	"weekly": [
-# 		"comfort_homes.tasks.weekly"
-# 	],
-# 	"monthly": [
-# 		"comfort_homes.tasks.monthly"
-# 	],
-# }
+# Custom HP penalty: 2.2% of each overdue instalment, once per scheduled
+# date, applied after a 7-day grace period.  Runs daily after the native
+# Lending accrual/demand jobs have completed.
+scheduler_events = {
+	"daily_long": [
+		"comfort_homes.penalty.calculate_and_apply_penalties",
+	],
+}
 
 # Testing
 # -------
@@ -319,14 +324,9 @@ before_migrate = "comfort_homes.webform_setup.ensure_install_schema"
 # Overriding Methods
 # ------------------------------
 #
-# Phase 3: Python signing methods replace the Server Script sandbox code.
-# The original Server Script fixtures can stay in place (disabled or active);
-# these overrides take precedence when the comfort_homes app is installed.
-override_whitelisted_methods = {
-    "hp_agreement_customer_sign": "comfort_homes.agreement_signing.hp_agreement_customer_sign",
-    "hp_agreement_director_sign": "comfort_homes.agreement_signing.hp_agreement_director_sign",
-    "hp_agreement_preview": "comfort_homes.agreement_signing.hp_agreement_preview",
-}
+# override_whitelisted_methods = {
+# 	"frappe.desk.doctype.event.event.get_events": "comfort_homes.event.get_events"
+# }
 #
 # each overriding function accepts a `data` argument;
 # generated from the base implementation of the doctype dashboard,

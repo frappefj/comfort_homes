@@ -1,11 +1,6 @@
-/* Printable Customer Documents — with co-applicant support.
- *
- * Phase 4 of the co-applicant integration.
- *
+/* Printable Customer Documents.
  * The application child table is the only source of the print-format list.
- * When a co-applicant exists (custom_existing_co_applicant is set), the
- * signing dialogs include co-hirer signature fields.  The API methods in
- * agreement_signing.py handle saving those signatures before rendering.
+ * There is deliberately no signing workflow in this UI.
  */
 
 function comfort_printable_customer_documents(frm) {
@@ -23,6 +18,7 @@ function comfort_document_title(row) {
 		"FORM-2": __("Form 2"),
 		"FINANCIAL-OBLIGATIONS": __("Summary of Financial Obligations"),
 		"CONSENT-FORM": __("Consent Form"),
+		"APPLICATION-ASSESSMENT": __("Application Assessment Summary"),
 	};
 	if (titles[row.document_code]) return titles[row.document_code];
 	return row.document_code || __("Customer Document");
@@ -42,63 +38,6 @@ function comfort_open_print_format(frm, row) {
 			if (r.message?.url) window.open(r.message.url, "_blank");
 		},
 	});
-}
-
-// ---------------------------------------------------------------------------
-// Co-applicant helpers for signing dialogs (Phase 4)
-// ---------------------------------------------------------------------------
-
-/**
- * Check whether the current Loan Application has a linked co-applicant.
- * Returns true when custom_existing_co_applicant is populated.
- */
-function comfort_has_co_applicant(frm) {
-	return Boolean(frm.doc.custom_existing_co_applicant);
-}
-
-/**
- * Fetch the co-applicant name asynchronously and call back with it.
- * Falls back to empty string if the fetch fails.
- */
-function comfort_fetch_co_applicant_name(frm, callback) {
-	if (!comfort_has_co_applicant(frm)) return callback("");
-	frappe.db.get_value(
-		"Co-Applicant",
-		frm.doc.custom_existing_co_applicant,
-		"applicant_name"
-	).then((r) => {
-		callback((r && r.message && r.message.applicant_name) || "");
-	}).catch(() => callback(""));
-}
-
-/**
- * Build signing dialog fields.  When a co-applicant exists, adds
- * co-hirer name (read-only) and co-hirer signature fields.
- *
- * @param {object} frm - The current Frappe form instance
- * @param {string} co_applicant_name - Pre-fetched co-applicant name
- * @returns {Array} Frappe dialog field definitions
- */
-function comfort_signing_dialog_fields(frm, co_applicant_name) {
-	const fields = [
-		{ fieldtype: "Section Break", label: __("Hirer Signature") },
-		{ fieldname: "hirer_name", label: __("Hirer Name"), fieldtype: "Data",
-		  read_only: 1, default: frm.doc.applicant_name || "" },
-		{ fieldname: "signature", label: __("Hirer Signature"), fieldtype: "Signature", reqd: 1 },
-	];
-
-	if (comfort_has_co_applicant(frm)) {
-		fields.push(
-			{ fieldtype: "Section Break", label: __("Co-Hirer Signature") },
-			{ fieldname: "co_hirer_name", label: __("Co-Hirer Name"), fieldtype: "Data",
-			  read_only: 1, default: co_applicant_name || "" },
-			{ fieldname: "co_hirer_signature", label: __("Co-Hirer Signature"),
-			  fieldtype: "Signature",
-			  description: __("Leave blank if the co-hirer is not present to sign.") }
-		);
-	}
-
-	return fields;
 }
 
 // The database Client Script from earlier releases defines these global helpers
