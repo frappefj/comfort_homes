@@ -45,3 +45,23 @@
 - `signed_pack.py` — Document signing workflow
 - `webform_setup.py` — Public web form setup
 - All fixtures (custom fields, print formats, workflows, etc.)
+
+### v2.0.1 Fixes (November 2026)
+
+**signed_pack.py** — Frappe v16 compatibility:
+- Print Format fixtures: boolean strings '0'/'1' → integers 0/1 (fixes "Raw Commands required" error)
+- `sync_reviewed_print_formats`: try/except on insert/save
+- `_ensure_assessment_document_template`: filter to valid columns only (fixes "Unknown column 'print_format'" error)
+- `_agreement_rows`: dynamic field list based on schema
+- DOCUMENT_PRINT_FORMATS loop: check `has_field` before setting print_format
+
+**Loan Product Configuration Note:**
+- Documentation Fee Loan Charge amount = **$22.22** (net, VAT-exclusive)
+- Item Tax Template "HP Doc Fee VAT 12.5%" adds $2.78 VAT → SI total = $25.00 VIP
+- The `custom_flexi_documentation_fee` field on Loan Application remains $25 (VIP, customer-facing)
+- The Loan Product charge stores the net amount for correct accounting split
+
+**Validation Test Findings:**
+- Loan Charges must be placed on `loan_disbursement_charges` (Disbursement), not just `loan_charges` (Loan)
+- The comfort_homes app's `apply_loan_values_to_disbursement` hook should auto-copy charges
+- Workflow roles (Director, Finance Manager, etc.) must be created before workflow can progress
