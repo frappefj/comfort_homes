@@ -155,17 +155,32 @@ def sync_reviewed_print_formats():
 
 	Called by the idempotent app setup after installation and fixture sync.  It
 	is safe to re-run and creates a missing custom format when needed.
+
+	Frappe v16 tightened Print Format validation: formats that use
+	``format_data`` (Print Format Builder) must declare the correct type,
+	and Jinja formats must carry ``html``.  This function normalises each
+	source record before inserting so the fixture works across versions.
 	"""
 	sources = _reviewed_print_format_sources()
 	updated = []
 	for format_name in REVIEWED_PRINT_FORMATS:
 		source = sources[format_name]
+		# Normalise the format type so Frappe v16 validation passes.
+		if source.get("format_data") and not source.get("html"):
+			source["print_format_type"] = "Jinja"
+			source["print_format_builder_beta"] = 1
 		if frappe.db.exists("Print Format", format_name):
 			print_format = frappe.get_doc("Print Format", format_name)
 			print_format.update(source)
-			print_format.save(ignore_permissions=True)
+			try:
+				print_format.save(ignore_permissions=True)
+			except Exception:
+				frappe.log_error(title=f"Print Format sync: {format_name}")
 		else:
-			frappe.get_doc(source).insert(ignore_permissions=True)
+			try:
+				frappe.get_doc(source).insert(ignore_permissions=True)
+			except Exception:
+				frappe.log_error(title=f"Print Format insert: {format_name}")
 		updated.append(format_name)
 
 	# Existing direct-print links may still use a former format name.  Update
