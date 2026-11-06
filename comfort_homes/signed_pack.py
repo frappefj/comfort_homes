@@ -29,15 +29,23 @@ def _agreement_rows(docname):
 		order_by="idx asc",
 	)
 	result = []
+	# The print_format field is a comfort_homes custom field on Loan Document
+	# Template.  It may not exist on a fresh site before fixtures are synced.
+	has_pf = frappe.get_meta("Loan Document Template").has_field("print_format")
+	template_fields = ["document_code", "document_name"]
+	if has_pf:
+		template_fields.append("print_format")
 	for row in rows:
 		template = frappe.db.get_value(
-			"Loan Document Template", row.document_template, ["document_code", "document_name", "print_format"], as_dict=True
+			"Loan Document Template", row.document_template, template_fields, as_dict=True
 		) or {}
 		code = row.document_code or template.get("document_code")
-		if code == "REQ" or not template.get("print_format"):
+		if code == "REQ" or (has_pf and not template.get("print_format")):
 			continue
 		row.title = template.get("document_name") or code
-		row.print_format = template.get("print_format")
+		row.print_format = template.get("print_format", "") if has_pf else ""
+		if not row.print_format:
+			continue
 		result.append(row)
 	return result
 
@@ -200,6 +208,8 @@ def sync_reviewed_print_formats():
 	# document code rather than site-specific LDT names, so individual and
 	# combined buttons consistently use the reviewed replacement layouts.
 	for document_code, format_name in DOCUMENT_PRINT_FORMATS.items():
+		if not frappe.get_meta("Loan Document Template").has_field("print_format"):
+			break
 		for template in frappe.get_all(
 			"Loan Document Template", filters={"document_code": document_code}, pluck="name"
 		):
@@ -231,15 +241,32 @@ def _ensure_assessment_document_template():
 		return None
 	template = _assessment_template()
 	if template:
-		frappe.db.set_value(
-			"Loan Document Template", template.name,
-			{key: value for key, value in ASSESSMENT_TEMPLATE_VALUES.items() if key != "name"},
-			update_modified=False,
-		)
+		# Filter to only fields that exist on this site's Loan Document Template.
+		meta = frappe.get_meta("Loan Document Template")
+		valid_fields = {f.fieldname for f in meta.fields}
+		safe_values = {
+			k: v for k, v in ASSESSMENT_TEMPLATE_VALUES.items()
+			if k != "name" and (k in valid_fields or k in ("doctype",))
+		}
+		if safe_values:
+			frappe.db.set_value(
+				"Loan Document Template", template.name, safe_values,
+				update_modified=False,
+			)
 		return _assessment_template()
-	return frappe.get_doc({"doctype": "Loan Document Template", **ASSESSMENT_TEMPLATE_VALUES}).insert(
-		ignore_permissions=True
-	)
+	# Filter insertion fields the same way.
+	meta = frappe.get_meta("Loan Document Template")
+	valid_fields = {f.fieldname for f in meta.fields} | {"doctype", "name"}
+	safe_doc = {
+		k: v for k, v in ASSESSMENT_TEMPLATE_VALUES.items()
+		if k in valid_fields
+	}
+	safe_doc["doctype"] = "Loan Document Template"
+	try:
+		return frappe.get_doc(safe_doc).insert(ignore_permissions=True)
+	except Exception:
+		frappe.log_error(title="Assessment template insert failed")
+		return None
 
 
 def ensure_assessment_customer_document(doc, method=None):
