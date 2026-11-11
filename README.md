@@ -1,7 +1,7 @@
 # Comfort Homes
 
 Frappe app for Comfort Home Furnishing PTE Limited's Flexi hire-purchase lending platform.
-
+(Initial Repo from Anuradha145)
 ## Architecture: Path B (Native-Aligned)
 
 This app works **with** the native Frappe Lending module, adding only the customisations that Flexi's HP agreement requires:
