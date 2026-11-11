@@ -129,7 +129,14 @@ doc_events = {
 		"before_validate": [
 			"comfort_homes.loan_mapping.apply_loan_application_values",
 			"comfort_homes.loan_mapping.apply_temporary_repayment_tenure",
+			"comfort_homes.interest_override.set_flat_daily_rate_on_loan",
 		]
+	},
+	"Loan Interest Accrual": {
+		"before_validate": "comfort_homes.interest_override.apply_flat_daily_rate",
+	},
+	"Loan Repayment Schedule": {
+		"on_update": "comfort_homes.interest_override.set_flat_daily_rate_after_schedule",
 	},
 	"Loan Disbursement": {
 		"before_validate": [

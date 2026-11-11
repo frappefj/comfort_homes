@@ -1,5 +1,45 @@
 # Comfort Homes — Changelog
 
+## v2.1.0 (November 2026) — Flat-Rate Daily Accrual Override
+
+### New Module: `interest_override.py`
+- **Flat daily accrual** for "Flat Interest Rate" schedule loans
+- Overrides the Lending module's declining-balance daily accrual with a constant
+  daily rate: `total_term_interest ÷ days_in_term`
+- Example: $158.62 ÷ 365 = **$0.4345/day** (constant, matches HP agreement)
+- Three hooks:
+  - `Loan → before_validate`: Calculates and stores flat daily rate on new loans
+  - `Loan Repayment Schedule → on_update`: Recalculates rate when schedule is finalised
+  - `Loan Interest Accrual → before_validate`: Overrides the accrual amount
+- Non-flat-rate loans are unaffected (hook checks `repayment_schedule_type`)
+
+### New Custom Field
+- `Loan.custom_flat_daily_interest` (Currency, hidden, read-only)
+  - Stores the pre-calculated daily rate
+  - Set automatically at loan creation / schedule generation
+  - Used by the accrual override
+
+### Why This Change
+The Lending module's "Flat Interest Rate" schedule generates equal monthly
+instalments but accrues interest daily on the declining balance. This creates
+a mismatch between:
+- **Customer statement**: $13.22 interest per month (flat)
+- **GL income statement**: $13.30 in month 1, declining to $1.20 in month 12
+
+For Flexi's straightforward HP business, the GL should match the customer
+agreement. This override ensures constant daily interest recognition.
+
+### Impact
+| Metric | Before (declining) | After (flat) |
+|--------|-------------------|-------------|
+| Daily GL interest | Variable ($0.43→$0.36→...) | **$0.43 every day** |
+| Monthly income | Front-loaded | **$13.22 constant** |
+| Total interest | $158.62 | **$158.62 (unchanged)** |
+| Customer payments | Unchanged | Unchanged |
+
+---
+
+
 ## v2.0.0 (November 2026) — Path B (Native-Aligned)
 
 ### Architecture
