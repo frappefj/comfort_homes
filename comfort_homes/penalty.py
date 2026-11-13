@@ -92,7 +92,7 @@ def _apply_penalty(loan_name, demand, penalty_amount, posting_date):
             "loan": loan_name,
             "posting_date": posting_date,
             "adjustment_type": "Loan Adjustment",
-            "adjustment_amount": penalty_amount,
+            "amount": penalty_amount,
             "remarks": (
                 f"Default charge: {PENALTY_RATE * 100:.1f}% of overdue instalment "
                 f"${flt(demand.demand_amount):,.2f} "

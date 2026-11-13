@@ -164,18 +164,18 @@ def get_data(filters):
     adjustments = frappe.get_all(
         "Loan Balance Adjustment",
         filters={"loan": loan_name, "docstatus": 1},
-        fields=["name", "posting_date", "adjustment_amount", "remarks"],
+        fields=["name", "posting_date", "amount", "remarks"],
         order_by="posting_date asc",
     )
 
     for adj in adjustments:
-        if flt(adj.adjustment_amount) > 0:
-            running_balance += flt(adj.adjustment_amount)
+        if flt(adj.amount) > 0:
+            running_balance += flt(adj.amount)
             rows.append({
                 "posting_date": adj.posting_date,
                 "description": "Default Charge" if "penalty" in (adj.remarks or "").lower() else "Balance Adjustment",
                 "reference": adj.name,
-                "charges": flt(adj.adjustment_amount),
+                "charges": flt(adj.amount),
                 "payments": 0,
                 "balance": running_balance,
             })
