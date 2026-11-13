@@ -1,5 +1,67 @@
 # Comfort Homes — Changelog
 
+## v2.3.0 (November 2026) — Configuration Fixes & Print Format Resolution
+
+### Fixes
+- **HP Customer Statement report:** Fixed `adjustment_amount` → `amount`
+  (Lending v16.8.0 renamed the field on Loan Balance Adjustment)
+- **Print Formats renamed** to match Loan Document Template references:
+  - Test Agreement → Hire Purchase Agreement
+  - Schedule 1 Test → Schedule 1
+  - Form 1 Test → Form 1
+  - Form2 Test → Form 2
+  - Consent Test → Consent Form
+  - Summary Test → Summary of Financial Obligations
+  - CIRA Authority Form imported from pre-prod
+- **Loan Document Template:** Added `print_format` custom field (Link → Print Format)
+  - This field was present on pre-prod but missing from dev/app fixtures
+  - Required by FLEXI DOCUMENT PREVIEW script to generate customer documents
+
+### Fixtures Updated
+- `custom_field.json` — 184 fields (added Loan Document Template.print_format)
+- `property_setter.json` — 9 setters (Province/City/Suburb title_field + search_fields)
+- `server_script.json` — 30 scripts (updated Flat Repayment Schedule Sync for all frequencies)
+- `print_format.json` — 8 formats (production names, not test names)
+- `loan_document_template.json` — 6 templates (with print_format values set)
+
+## v2.2.0 (November 2026) — Multi-Frequency Flat-Rate Support
+
+### Breaking Change: Loan Product Schedule Type
+- Changed from `Flat Interest Rate` → `Monthly as per repayment start date`
+- This matches pre-prod and removes the Lending module's restriction that
+  blocked Weekly and Bi-Weekly (Fortnightly) repayment frequencies
+- The comfort_homes app's `Flexi Flat Repayment Schedule Sync` script
+  overrides the reducing-balance schedule with flat-rate amounts
+
+### Updated: `Flexi Flat Repayment Schedule Sync` Server Script
+- **Previously:** Only handled `repayment_frequency == "Monthly"`
+- **Now:** Handles Weekly (7-day), Bi-Weekly (14-day), and Monthly
+- Calculates equal principal + equal interest per period for ALL frequencies
+- Uses the correct instalment amount from the Loan Application:
+  - Weekly → `custom_flexi_weekly_instalment_amount`
+  - Bi-Weekly → `custom_flexi_fortnightly_instalment_amount`
+  - Monthly → `custom_flexi_monthly_instalment_amount`
+
+### Updated: `interest_override.py`
+- Simplified: triggers on any Loan with `custom_flat_daily_interest > 0`
+  (no longer checks schedule type — works for both Flat Interest Rate and
+  Monthly as per repayment start date)
+- Supports all repayment frequencies for term calculation
+
+### Why This Change
+The Lending module hard-validates at `loan.py` line 245:
+```python
+if self.repayment_schedule_type == "Flat Interest Rate":
+    if self.repayment_frequency not in ("Monthly", "Yearly"):
+        frappe.throw("Flat Interest Rate loans can only have monthly and yearly repayment frequency")
+```
+Flexi customers choose Weekly, Fortnightly, or Monthly repayment. Using
+`Monthly as per repayment start date` bypasses this restriction while the
+comfort_homes override script ensures the schedule remains flat-rate.
+
+This matches the pre-prod site's configuration where all 16 Loan Products
+use `Monthly as per repayment start date`.
+
 ## v2.1.0 (November 2026) — Flat-Rate Daily Accrual Override
 
 ### New Module: `interest_override.py`
