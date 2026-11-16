@@ -96,35 +96,26 @@ CUSTOMER_PRINT_FORMATS = (
 # idempotent application setup syncs them after install/fixture sync, ensuring
 # a restored site uses the reviewed layouts rather than stale database HTML.
 REVIEWED_PRINT_FORMATS = (
-	"Test Agreement",
-	"Schedule 1 Test",
-	"Form 1 Test",
-	"Form2 Test",
-	"Summary Test",
-	"Consent Test",
+	"Hire Purchase Agreement",
+	"Schedule 1",
+	"Form 1",
+	"Form 2",
+	"Summary of Financial Obligations",
+	"Consent Form",
 	"Application Print WIP",
 )
 
-# Keep direct links to the former database-only formats safe during the
-# transition.  We do not create these retired names on a new site, but where
-# one already exists its HTML is made identical to the reviewed replacement.
-# This prevents Desk Print view from disagreeing with Customer Documents.
-LEGACY_PRINT_FORMAT_ALIASES = {
-	"Hire Purchase Agreement": "Test Agreement",
-	"Schedule 1": "Schedule 1 Test",
-	"Form 1": "Form 1 Test",
-	"Form 2": "Form2 Test",
-	"Summary of Financial Obligations": "Summary Test",
-	"Consent Form": "Consent Test",
-}
+# The former "... Test" names were retired.  Production names are the reviewed names,
+# so there is nothing to alias.
+LEGACY_PRINT_FORMAT_ALIASES = {}
 
 DOCUMENT_PRINT_FORMATS = {
-	"HP-AGREEMENT": "Test Agreement",
-	"SCHEDULE-1": "Schedule 1 Test",
-	"FORM-1": "Form 1 Test",
-	"FORM-2": "Form2 Test",
-	"FINANCIAL-OBLIGATIONS": "Summary Test",
-	"CONSENT-FORM": "Consent Test",
+	"HP-AGREEMENT": "Hire Purchase Agreement",
+	"SCHEDULE-1": "Schedule 1",
+	"FORM-1": "Form 1",
+	"FORM-2": "Form 2",
+	"FINANCIAL-OBLIGATIONS": "Summary of Financial Obligations",
+	"CONSENT-FORM": "Consent Form",
 	"APPLICATION-ASSESSMENT": "Application Print WIP",
 }
 

@@ -65,13 +65,14 @@ fixtures = [
 		# rather than relying on the HTML stored in one site's database.
 		"dt": "Print Format",
 		"filters": [["name", "in", [
-			"Test Agreement",
-			"Schedule 1 Test",
-			"Form 1 Test",
-			"Form2 Test",
-			"Summary Test",
-			"Consent Test",
+			"Hire Purchase Agreement",
+			"Schedule 1",
+			"Form 1",
+			"Form 2",
+			"Summary of Financial Obligations",
+			"Consent Form",
 			"Application Print WIP",
+			"CIRA Authority Form",
 		]]],
 	},
 	{
