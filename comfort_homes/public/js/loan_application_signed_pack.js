@@ -78,23 +78,23 @@ frappe.ui.form.on("Loan Application", {
 		if (frm.__comfortDepositInvoiceActionV2Registered) return;
 
 		const addButton = () => {
-			frm.add_custom_button(__("Create Deposit Sales Invoice"), () => {
+			frm.add_custom_button(__("Record Deposit Payment"), () => {
 				frappe.call({
-					method: "comfort_homes.api.create_deposit_sales_invoice",
+					method: "comfort_homes.api.create_deposit_payment_entry",
 					args: { loan_application: frm.doc.name },
 					freeze: true,
-					freeze_message: __("Creating draft deposit invoice..."),
+					freeze_message: __("Creating draft deposit payment..."),
 					callback(response) {
-						if (response.message?.name) frappe.set_route("Form", "Sales Invoice", response.message.name);
+						if (response.message?.name) frappe.set_route("Form", "Payment Entry", response.message.name);
 					},
 				});
 			});
 			frm.__comfortDepositInvoiceActionV2Registered = true;
 		};
 
-		const invoice = frm.doc.custom_deposit_sales_invoice;
+		const invoice = frm.doc.custom_hp_deposit_payment_entry;
 		if (!invoice) return addButton();
-		frappe.db.get_value("Sales Invoice", invoice, "docstatus").then((result) => {
+		frappe.db.get_value("Payment Entry", invoice, "docstatus").then((result) => {
 			const status = result?.message?.docstatus;
 			if (status === 2 || status === null || status === undefined) addButton();
 		});

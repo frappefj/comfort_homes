@@ -1,6 +1,6 @@
 """HP Customer Statement — gross view for hire-purchase customers.
 
-Shows: purchase items, fees, deposit, all payments, penalties, and running balance.
+Shows: purchase items, fees, interest, deposit, all payments, late charges, rebates, and running balance.
 This aggregates the Lending module's separate principal/interest/charges into
 a single customer-friendly statement.
 """
@@ -98,45 +98,29 @@ def get_data(filters):
             running_balance += term_charges
             rows.append({
                 "posting_date": application.get("creation"),
-                "description": f"Interest ({application.get('custom_flexi_interest_rate', 22)}% p.a. × {application.get('custom_flexi_term_months', 12)} months)",
+                "description": f"Interest ({flt(loan.get('custom_hp_contract_rate') or application.get('custom_flexi_interest_rate') or 22):g}% flat p.a. × {application.get('custom_flexi_term_months', 12)} months)",
                 "reference": application.name,
                 "charges": term_charges,
                 "payments": 0,
                 "balance": running_balance,
             })
 
-    # ── 4. Deposit ──
-    deposit_invoices = frappe.get_all(
-        "Sales Invoice",
-        filters={"custom_loan_application": loan.loan_application, "docstatus": 1},
-        fields=["name", "posting_date", "grand_total"],
-        order_by="posting_date asc",
-    ) if loan.loan_application else []
-
-    for si in deposit_invoices:
-        # Check if this SI has a "Loan Deposit" item
-        has_deposit = frappe.db.exists(
-            "Sales Invoice Item",
-            {"parent": si.name, "item_code": "Loan Deposit"},
+    # ── 4. Deposit (a Payment Entry linked on the Loan Application; no invoice is raised) ──
+    deposit_entry = application.get("custom_hp_deposit_payment_entry") if application else None
+    if deposit_entry:
+        pe = frappe.db.get_value(
+            "Payment Entry", deposit_entry, ["posting_date", "paid_amount", "docstatus"], as_dict=True
         )
-        if has_deposit:
-            payments = frappe.get_all(
-                "Payment Entry Reference",
-                filters={"reference_name": si.name, "docstatus": 1},
-                fields=["parent"],
-            )
-            for pe_ref in payments:
-                pe = frappe.get_doc("Payment Entry", pe_ref.parent)
-                if pe.docstatus == 1:
-                    running_balance -= flt(pe.paid_amount)
-                    rows.append({
-                        "posting_date": pe.posting_date,
-                        "description": "Deposit Received",
-                        "reference": pe.name,
-                        "charges": 0,
-                        "payments": flt(pe.paid_amount),
-                        "balance": running_balance,
-                    })
+        if pe and pe.docstatus == 1:
+            running_balance -= flt(pe.paid_amount)
+            rows.append({
+                "posting_date": pe.posting_date,
+                "description": "Deposit Received",
+                "reference": deposit_entry,
+                "charges": 0,
+                "payments": flt(pe.paid_amount),
+                "balance": running_balance,
+            })
 
     # ── 5. Loan Repayments ──
     repayments = frappe.get_all(
@@ -160,25 +144,33 @@ def get_data(filters):
             "balance": running_balance,
         })
 
-    # ── 6. Penalty / Balance Adjustments ──
+    # ── 6. Late-payment charges (debits) and rebates / waivers (credits) ──
     adjustments = frappe.get_all(
         "Loan Balance Adjustment",
         filters={"loan": loan_name, "docstatus": 1},
-        fields=["name", "posting_date", "amount", "remarks"],
+        fields=["name", "posting_date", "amount", "remarks", "adjustment_type", "reference_number"],
         order_by="posting_date asc",
     )
 
     for adj in adjustments:
-        if flt(adj.amount) > 0:
-            running_balance += flt(adj.amount)
-            rows.append({
-                "posting_date": adj.posting_date,
-                "description": "Default Charge" if "penalty" in (adj.remarks or "").lower() else "Balance Adjustment",
-                "reference": adj.name,
-                "charges": flt(adj.amount),
-                "payments": 0,
-                "balance": running_balance,
-            })
+        amount = flt(adj.amount)
+        if not amount:
+            continue
+        ref = adj.reference_number or ""
+        if adj.adjustment_type == "Debit Adjustment":
+            description = "Late Payment Charge" if ref.startswith("HP-PEN") else "Balance Adjustment"
+            charges, payments = amount, 0
+        else:
+            description = "Early Settlement Rebate" if ref.startswith("HP-REBATE") else "Waiver / Credit"
+            charges, payments = 0, amount
+        rows.append({
+            "posting_date": adj.posting_date,
+            "description": description,
+            "reference": adj.name,
+            "charges": charges,
+            "payments": payments,
+            "balance": 0,
+        })
 
     # Sort all rows by date
     rows.sort(key=lambda r: (getdate(r["posting_date"]), rows.index(r)))

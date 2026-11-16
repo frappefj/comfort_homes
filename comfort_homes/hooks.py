@@ -49,14 +49,14 @@ jinja = {
 required_apps = ["frappe", "erpnext", "lending"]
 
 # ---------------------------------------------------------------------------
-# Path B (Native-Aligned) architecture notes
-# ---------------------------------------------------------------------------
-# Interest:   Native daily accrual — no deferral account, no custom release.
-# Fees:       Native Loan Charges on each product — auto Sales Invoice.
-# VAT:        Item Tax Template on Documentation Fee charge (12.5%).
-# Penalty:    Custom (this app) — 2.2% per overdue instalment via scheduler.
-# Statement:  Custom report — HP Customer Statement (gross customer view).
-# Deposit:    Sales Invoice (Loan Deposit item → 2010 Advance Payment).
+# Architecture: Gross Hire Purchase on native Frappe Lending (see docs/)
+# Loan:       carries the balance after deposit at 0%; the contract rate is on the product.
+# Schedule:   native (equal instalments, last absorbs rounding).
+# Booking:    one journal at disbursement (hp_lifecycle) moves the contract to its gross form.
+# Interest:   monthly straight-line release from Deferred Interest (hp_interest).
+# Penalty:    scheduler posts a Debit Loan Balance Adjustment (hp_penalties); income on closure.
+# Settlement: Rule of 78 rebate as a Credit Loan Balance Adjustment (hp_settlement).
+# Deposit:    Payment Entry linked on the application; no Sales Invoice.
 # ---------------------------------------------------------------------------
 
 fixtures = [
@@ -93,25 +93,56 @@ fixtures = [
 	{
 		"dt": "Client Script",
 		"filters": [["name", "in", [
-		"Flexi Loan Bank Reconciliation",
-		"Flexi Customer Document Signing",
-		"Flexi Customer Document Signing Order",
-		"Comfort Homes Loan Application Deposit Invoice",
-	]]],
+			"Flexi Customer Document Signing",
+			"Flexi Customer Document Signing Order",
+			"Flexi Loan Bank Reconciliation",
+		]]],
 	},
 	{
 		"dt": "Server Script",
 		"filters": [["name", "in", [
-			"Flexi Default Customer Agreements",
+			"Attach signed CIRA Authority PDF",
+			"Auto Create Draft PO on Loan Activation",
+			"Auto Create Draft PO on Loan Activation - Co-Applicant",
+			"Auto Create Draft PO on Loan Activation After Submission",
+			"Auto Create Draft PO on Loan Activation After Submission - Co-Applicant",
+			"Calculations",
 			"Dynamic Laon P",
-			"FLEXI DOCUMENT SYNC",
 			"FLEXI DOCUMENT CUSTOMER SIGN",
 			"FLEXI DOCUMENT DIRECTOR SIGN",
+			"FLEXI DOCUMENT PREVIEW",
+			"FLEXI DOCUMENT SYNC",
+			"Flexi Copy HP Items to Loan",
+			"Flexi Create Customer From Loan Application",
+			"Flexi Default Customer Agreements",
+			"Flexi Default Loan Disbursement Payment Method",
+			"Flexi Default Loan Repayment Payment Method",
+			"Flexi Flat Repayment Schedule Sync",
+			"Flexi Loan Application Workflow Task",
+			"Flexi Prepare Loan Amount",
+			"Flexi Sync Prepared By From Assignment",
+			"HIRE PURCHASE AGREEMENT",
+			"HP AGREEMENT CUSTOMER SIGN",
+			"HP AGREEMENT DIRECTOR SIGN",
+			"HP AGREEMENT PREVIEW",
+			"Loan Application",
+			"Loan Status Updation",
+			"form1_print",
+			"form2_print",
+			"link documents to loan application",
+			"schedule1_print",
 		]]],
 	},
 	{
 		"dt": "Loan Document Template",
-		"filters": [["document_code", "in", ["REQ", "APPLICATION-ASSESSMENT"]]],
+		"filters": [["document_code", "in", [
+			"APPLICATION-ASSESSMENT",
+			"FORM-1",
+			"FORM-2",
+			"HP-AGREEMENT",
+			"REQ",
+			"SCHEDULE-1",
+		]]],
 	},
 	{
 		# The published public application is an app fixture, not a site-only
@@ -138,6 +169,9 @@ doc_events = {
 			"comfort_homes.loan_mapping.apply_loan_values_to_disbursement",
 			"comfort_homes.loan_mapping.apply_temporary_repayment_tenure_to_disbursement",
 		]
+	},
+	"Loan Write Off": {
+		"on_submit": "comfort_homes.hp_lending.hp_settlement.clear_deferred_on_write_off",
 	},
 	"Purchase Order": {
 		"before_save": "comfort_homes.loan_mapping.apply_loan_application_purchase_values",
@@ -301,9 +335,8 @@ before_migrate = "comfort_homes.webform_setup.ensure_install_schema"
 
 # Scheduled Tasks
 # ---------------
-# Custom HP penalty: 2.2% of each overdue instalment, once per scheduled
-# date, applied after a 7-day grace period.  Runs daily after the native
-# Lending accrual/demand jobs have completed.
+# HP late-payment charge: the Loan Product rate (2.5% a month) on instalments overdue past the
+# 7-day grace period, once per repayment date, stopping at 90 days past due.
 scheduler_events = {
 	"daily_long": [
 		"comfort_homes.hp_lending.hp_penalties.assess_penalties",

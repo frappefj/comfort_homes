@@ -1,7 +1,8 @@
 # Flexi HP on Frappe Lending v16: build specification (draft for review)
 
-Status: DRAFT. Code on branch `rebuild/gross-hp`. Nothing here has been run on a
-site yet. Section 6 lists what the prototype must confirm before this is trusted.
+Status: code complete on branch `rebuild/gross-hp` (v0.0.6), not yet run on a site. The full configuration
+and implementation guide is the shared document "Flexi HP Configuration and Implementation Guide".
+Section 6 lists what the prototype must confirm before this is trusted.
 
 ## 1. Model (decided)
 
@@ -32,7 +33,7 @@ Worked example (goods 849, deposit 170, 22% flat, 12 months):
 | Schedule | Native. Product schedule type "Monthly as per repayment start date" (supports weekly/fortnightly). Equal instalments, last absorbs rounding | none |
 | Disbursement | Native: Dr HP Receivable / Cr Clearing 879.59 | none |
 | Gross booking | ONE added journal entry: Dr Deposits 170.00, Dr Clearing 30.59 / Cr Deferred Interest 158.61, Admin 16.98, Doc fee 22.22, VAT 2.78 | `hp_lifecycle` |
-| LPO / CHD invoice | Existing PO workflow; non-stock item HP-GOODS to Clearing | existing |
+| LPO / CHD invoice | Existing PO workflow; non-stock item HP Product to Clearing | existing |
 | Repayments | Native Loan Repayment | none |
 | Interest earned | Monthly job, straight-line, current loans only, catch-up on cure | `hp_interest` |
 | Late charges | Daily job: rate/period x overdue instalments past 7-day grace, posted as Loan Balance Adjustment to Deferred Penalty | `hp_penalties` |
@@ -54,7 +55,7 @@ Company: Days Past Due Threshold 90 (NPA). Run `hp_settings.check_setup` after i
 Removed: `penalty.py` (used an invalid adjustment type), `interest_override.py`
 (flat daily rate, not needed at 0% loan interest), Sales Invoice deposit gate.
 Disabled in fixtures: server scripts "Calculations" and "Flexi Flat Repayment Schedule Sync".
-Still to remove after confirmation: `api.create_deposit_sales_invoice` and its client script.
+Removed: `api.create_deposit_sales_invoice` and its client script (replaced by `create_deposit_payment_entry`).
 
 ## 5. Permissions: proposed minimal matrix (DRAFT)
 
@@ -88,6 +89,8 @@ Cancel only, never delete, on Loan Disbursement, Loan Write Off and Payment Entr
 
 ## 7. Open items
 
-Early-settlement posting (Rule of 78), write-off and repossession entries, CHD purchase invoice
-on delivery (LPO must be submitted first), permissions fixtures, Chart of Accounts import file,
-print formats reading the contract rate from the Loan Product.
+Built since this draft: Rule of 78 settlement and write-off clearance (`hp_settlement`), Chart of Accounts
+import file (`setup_data/`), permissions (`hp_permissions`), master data setup (`hp_setup`), the deposit
+Payment Entry replacing the Sales Invoice.
+
+Still open: decisions on early-settlement fees and repossession entries; confirmation of tests 1 to 8 on a site.
