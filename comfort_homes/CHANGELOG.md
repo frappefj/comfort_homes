@@ -7,7 +7,7 @@
   (Loan Product fields, 2.5% a month, 7-day grace, stops at 90 days); penalties recognised on closure.
 - Ledger accounts are found by account number (`hp_settings.account`), so the Chart of Accounts
   Importer's naming does not matter. New `setup_data/chart_of_accounts_flexi.csv` (107 accounts).
-- `hp_setup.setup_masters`: roles, Company loan accounting and NPA 90, CHD supplier, HP-GOODS item,
+- `hp_setup.setup_masters`: roles, Company loan accounting and NPA 90, CHD supplier, HP Product item,
   Loan Product HP-STD, demand offset order. Dry run by default.
 - `hp_settlement`: Rule of 78 early-settlement quote and rebate posting; write-off clearance of deferred
   interest and penalties (hooked on Loan Write Off submit).

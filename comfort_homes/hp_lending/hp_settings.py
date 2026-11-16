@@ -9,7 +9,7 @@ import frappe
 
 COMPANY = "Comfort Home Furnishing PTE Limited"
 CHD_SUPPLIER = "Comfort Home Distribution PTE Limited"
-HP_ITEM_CODE = "HP-GOODS"
+HP_ITEM_CODE = "HP Product"  # the item the LPO script (Auto Create Draft PO) already uses
 
 # Ledger accounts are found by ACCOUNT NUMBER, not by name.  The Chart of
 # Accounts Importer builds names as "<number> - <name> - <abbr>", so names differ

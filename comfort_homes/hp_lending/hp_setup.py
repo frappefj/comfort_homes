@@ -2,7 +2,7 @@
 
 Run order on a new site (see docs/CONFIGURATION_GUIDE.md):
   1. Company exists, Chart of Accounts imported from setup_data/chart_of_accounts_flexi.csv
-  2. ``setup_masters(dry_run=0)``   creates CHD supplier, HP-GOODS item, Loan Product, offset order
+  2. ``setup_masters(dry_run=0)``   creates CHD supplier, HP Product item, Loan Product, offset order
   3. ``check_setup()``              must return ok
 """
 
@@ -29,7 +29,7 @@ def _plan():
 	if not frappe.db.exists("Supplier", s.CHD_SUPPLIER):
 		plan.append("Create Supplier " + s.CHD_SUPPLIER)
 	if not frappe.db.exists("Item", s.HP_ITEM_CODE):
-		plan.append("Create non-stock Item " + s.HP_ITEM_CODE)
+		plan.append(f"Create non-stock Item '{s.HP_ITEM_CODE}'")
 	if not frappe.db.exists("Loan Product", PRODUCT_CODE):
 		plan.append("Create Loan Product " + PRODUCT_CODE)
 	if not frappe.db.exists("Loan Demand Offset Order", "Standard Loan Demand Offset Order"):
@@ -103,9 +103,9 @@ def _item():
 	item = frappe.get_doc({
 		"doctype": "Item",
 		"item_code": s.HP_ITEM_CODE,
-		"item_name": "Hire Purchase Goods (supplied by CHD)",
+		"item_name": "HP Product",
 		"item_group": group,
-		"stock_uom": "Nos",
+		"stock_uom": "Unit",
 		"is_stock_item": 0,
 		"is_purchase_item": 1,
 		"is_sales_item": 0,
