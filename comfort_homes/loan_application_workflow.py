@@ -7,6 +7,7 @@ from frappe import _
 from frappe.utils import flt, getdate, today
 
 from comfort_homes.api import _existing_customer_match
+from comfort_homes.hp_lending import hp_math
 
 
 CONTRACT_STATES = {"Contract Signing", "Awaiting Customer Signature"}
@@ -103,6 +104,10 @@ def calculate_financials(doc, method=None):
 	interest_rate = flt(doc.get("custom_flexi_interest_rate"))
 	term_charges = _money(financed * interest_rate / 100 * months / 12)
 	total_repayment = _money(financed + term_charges)
+	# Only the documentation fee carries VAT (12.5%, included in the fee).
+	doc_fee_net, doc_fee_vat = (float(x) for x in hp_math.split_documentation_fee(documentation_fee))
+	# Everything booked at disbursement: goods + interest + fees, deposit included.
+	gross_contract_value = _money(purchase_value + term_charges + admin_fee + documentation_fee) if purchase_value else 0
 	counts = {
 		"weekly": round(months * 52 / 12),
 		"fortnightly": round(months * 26 / 12),
@@ -151,13 +156,18 @@ def calculate_financials(doc, method=None):
 		"custom_flexi_deposit_percent": _money(deposit_percent),
 		"custom_flexi_deposit_amount": _money(deposit_amount),
 		"custom_flexi_value_after_deposit": after_deposit,
-		# Loan Amount is the total credit being financed: balance after the
-		# deposit plus every applicable finance fee, not the balance alone.
-		"loan_amount": financed,
+		# Gross HP: the Loan carries the whole balance the customer repays after
+		# the deposit (financed amount plus term charges), at 0% interest, because
+		# the interest is already in the amount.  The contract rate is kept on the
+		# Loan Product and printed on the agreement.
+		"loan_amount": total_repayment,
 		"custom_flexi_admin_fee": admin_fee,
 		"custom_flexi_net_amount_financed": financed,
 		"custom_flexi_term_charges": term_charges,
 		"custom_flexi_total_receivable": total_repayment,
+		"custom_flexi_doc_fee_net": doc_fee_net,
+		"custom_flexi_doc_fee_vat": doc_fee_vat,
+		"custom_flexi_gross_contract_value": gross_contract_value,
 		"custom_flexi_weekly_instalments": counts["weekly"],
 		"custom_flexi_weekly_instalment_amount": amounts["weekly"],
 		"custom_flexi_fortnightly_instalments": counts["fortnightly"],
@@ -218,28 +228,3 @@ def validate_branch_location(doc, method=None):
 			_("Select a branch/location Cost Center, not a Cost Center group."),
 			title=_("Child Cost Center Required"),
 		)
-
-
-def validate_deposit_invoice(doc, method=None):
-	"""A submitted Sales Invoice is required before a deposit-bearing contract progresses."""
-	previous = doc.get_doc_before_save()
-	if not previous or previous.workflow_state not in CONTRACT_STATES:
-		return
-	if doc.workflow_state not in POST_CONTRACT_STATES:
-		return
-	if flt(doc.get("custom_flexi_deposit_amount")) <= 0:
-		return
-
-	invoice = frappe.get_all(
-		"Sales Invoice",
-		filters={"custom_loan_application": doc.name, "docstatus": 1},
-		fields=["name"],
-		order_by="posting_date desc, modified desc",
-		limit_page_length=1,
-	)
-	if not invoice:
-		frappe.throw(
-			_("A submitted Sales Invoice for the loan deposit is required before moving from Contract Signing."),
-			title=_("Loan Deposit Invoice Required"),
-		)
-	doc.custom_deposit_sales_invoice = invoice[0].name

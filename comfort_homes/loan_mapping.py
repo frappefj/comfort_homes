@@ -132,6 +132,12 @@ def apply_loan_application_values(doc, method=None):
 	preference = application.get("custom_flexi_payment_period")
 	doc.repayment_start_date = application.get("custom_flexi_first_instalment_date")
 	doc.repayment_frequency = FREQUENCY_MAP.get(preference, doc.repayment_frequency)
+	# Gross HP: interest is already inside the amount, so Lending schedules the
+	# balance after the deposit as equal principal-only instalments at 0%.  The
+	# contract rate stays on the Loan Product and the agreement.
+	doc.loan_amount = application.get("custom_flexi_total_receivable") or doc.loan_amount
+	doc.custom_hp_contract_rate = doc.get("rate_of_interest")
+	doc.rate_of_interest = 0
 	doc.cost_center = application.get("custom_branchlocation") or doc.cost_center
 	doc.custom_mode_of_payment = MODE_OF_PAYMENT_MAP.get(
 		application.get("custom_flexi_payment_method"), application.get("custom_flexi_payment_method")
@@ -147,6 +153,8 @@ def apply_loan_values_to_disbursement(doc, method=None):
 	loan = frappe.get_doc("Loan", doc.against_loan)
 	doc.repayment_start_date = loan.get("repayment_start_date") or doc.repayment_start_date
 	doc.repayment_frequency = loan.get("repayment_frequency") or doc.repayment_frequency
+	if loan.get("loan_application"):
+		doc.disbursed_amount = loan.loan_amount  # the whole post-deposit balance, in one disbursement
 	doc.cost_center = loan.get("cost_center") or doc.cost_center
 	doc.mode_of_payment = loan.get("custom_mode_of_payment") or doc.mode_of_payment
 
