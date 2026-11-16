@@ -11774,5 +11774,109 @@
   "width": null,
   "columns": 0,
   "doctype": "Custom Field"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Loan Product-custom_hp_penalty_rate_monthly",
+  "dt": "Loan Product",
+  "fieldname": "custom_hp_penalty_rate_monthly",
+  "label": "HP Penalty Rate (% per month)",
+  "fieldtype": "Percent",
+  "insert_after": "penalty_interest_rate",
+  "default": "2.5",
+  "description": "Contractual late-payment charge, % of overdue instalments per month. Converted to a per-period rate by repayment frequency. Leave the native Penalty Interest Rate at 0."
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Loan Product-custom_hp_penalty_stop_dpd",
+  "dt": "Loan Product",
+  "fieldname": "custom_hp_penalty_stop_dpd",
+  "label": "Stop Penalties at Days Past Due",
+  "fieldtype": "Int",
+  "insert_after": "custom_hp_penalty_rate_monthly",
+  "default": "90",
+  "description": "No further late-payment charges once the loan is this many days past due."
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Loan Application-custom_flexi_doc_fee_net",
+  "dt": "Loan Application",
+  "fieldname": "custom_flexi_doc_fee_net",
+  "label": "Documentation Fee (ex VAT)",
+  "fieldtype": "Currency",
+  "insert_after": "custom_flexi_documentation_fee",
+  "options": "Company:company:default_currency",
+  "read_only": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Loan Application-custom_flexi_doc_fee_vat",
+  "dt": "Loan Application",
+  "fieldname": "custom_flexi_doc_fee_vat",
+  "label": "Documentation Fee VAT",
+  "fieldtype": "Currency",
+  "insert_after": "custom_flexi_doc_fee_net",
+  "options": "Company:company:default_currency",
+  "read_only": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Loan Application-custom_flexi_gross_contract_value",
+  "dt": "Loan Application",
+  "fieldname": "custom_flexi_gross_contract_value",
+  "label": "Gross Contract Value (incl. deposit)",
+  "fieldtype": "Currency",
+  "insert_after": "custom_flexi_total_receivable",
+  "options": "Company:company:default_currency",
+  "read_only": 1,
+  "description": "Goods + term charges + admin fee + documentation fee (net and VAT). Booked in full at disbursement."
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Loan Application-custom_hp_deposit_payment_entry",
+  "dt": "Loan Application",
+  "fieldname": "custom_hp_deposit_payment_entry",
+  "label": "Deposit Payment Entry",
+  "fieldtype": "Link",
+  "insert_after": "custom_flexi_deposit_amount",
+  "options": "Payment Entry",
+  "no_copy": 1,
+  "description": "Submitted Payment Entry that received the deposit. Required before the contract moves on."
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Journal Entry-custom_hp_loan",
+  "dt": "Journal Entry",
+  "fieldname": "custom_hp_loan",
+  "label": "HP Loan",
+  "fieldtype": "Link",
+  "insert_after": "user_remark",
+  "options": "Loan",
+  "read_only": 1,
+  "no_copy": 1,
+  "search_index": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Journal Entry-custom_hp_entry_type",
+  "dt": "Journal Entry",
+  "fieldname": "custom_hp_entry_type",
+  "label": "HP Entry Type",
+  "fieldtype": "Select",
+  "insert_after": "custom_hp_loan",
+  "options": "\nGross Booking Reclass\nInterest Release\nPenalty Realisation\nRebate",
+  "read_only": 1,
+  "no_copy": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Loan-custom_hp_contract_rate",
+  "dt": "Loan",
+  "fieldname": "custom_hp_contract_rate",
+  "label": "Contract Rate (% p.a., flat)",
+  "fieldtype": "Percent",
+  "insert_after": "rate_of_interest",
+  "read_only": 1,
+  "description": "The rate on the HP agreement. The Loan itself runs at 0% because the interest is already in the loan amount."
  }
 ]

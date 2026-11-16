@@ -79,7 +79,7 @@ fixtures = [
 		# Flexi extends Lending's standard DocTypes through Custom Field records.
 		# Keeping the complete set here makes a fresh installation reproduce the
 		# same Loan Application layout and database columns as the working site.
-		"filters": [["dt", "in", ["Loan Application", "Loan", "Loan Disbursement", "Sales Invoice", "Purchase Order", "Purchase Invoice", "Customer", "Contact"]]],
+		"filters": [["dt", "in", ["Loan Application", "Loan", "Loan Product", "Journal Entry", "Loan Disbursement", "Sales Invoice", "Purchase Order", "Purchase Invoice", "Customer", "Contact"]]],
 	},
 	{
 		"dt": "Property Setter",
@@ -129,16 +129,10 @@ doc_events = {
 		"before_validate": [
 			"comfort_homes.loan_mapping.apply_loan_application_values",
 			"comfort_homes.loan_mapping.apply_temporary_repayment_tenure",
-			"comfort_homes.interest_override.set_flat_daily_rate_on_loan",
 		]
 	},
-	"Loan Interest Accrual": {
-		"before_validate": "comfort_homes.interest_override.apply_flat_daily_rate",
-	},
-	"Loan Repayment Schedule": {
-		"on_update": "comfort_homes.interest_override.set_flat_daily_rate_after_schedule",
-	},
 	"Loan Disbursement": {
+		"on_submit": "comfort_homes.hp_lending.hp_lifecycle.on_disbursement_submit",
 		"before_validate": [
 			"comfort_homes.loan_mapping.apply_loan_values_to_disbursement",
 			"comfort_homes.loan_mapping.apply_temporary_repayment_tenure_to_disbursement",
@@ -157,7 +151,7 @@ doc_events = {
 			"comfort_homes.loan_application_workflow.calculate_financials",
 			"comfort_homes.co_applicant.validate_existing_co_applicant",
 			"comfort_homes.loan_application_workflow.validate_branch_location",
-			"comfort_homes.loan_application_workflow.validate_deposit_invoice",
+			"comfort_homes.hp_lending.hp_lifecycle.validate_deposit_payment",
 		],
 	},
 	"Co-Applicant": {
@@ -311,8 +305,13 @@ before_migrate = "comfort_homes.webform_setup.ensure_install_schema"
 # Lending accrual/demand jobs have completed.
 scheduler_events = {
 	"daily_long": [
-		"comfort_homes.penalty.calculate_and_apply_penalties",
+		"comfort_homes.hp_lending.hp_penalties.assess_penalties",
+		"comfort_homes.hp_lending.hp_penalties.realise_closed_loan_penalties",
 	],
+	# 02:30 on the 1st: release deferred interest for the month that has just ended.
+	"cron": {
+		"30 2 1 * *": ["comfort_homes.hp_lending.hp_interest.release_deferred_interest"],
+	},
 }
 
 # Testing
