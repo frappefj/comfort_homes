@@ -11,22 +11,55 @@ COMPANY = "Comfort Home Furnishing PTE Limited"
 CHD_SUPPLIER = "Comfort Home Distribution PTE Limited"
 HP_ITEM_CODE = "HP-GOODS"
 
-ACC_RECEIVABLE = "HP Receivables - Current - FLEXI"
-ACC_CLEARING = "1180 - HP Goods Clearing Contra - FLEXI"
-ACC_DEPOSITS = "2010 - Customer HP Deposits - FLEXI"
-ACC_DEF_INTEREST = "2013 - Deferred HP Interest - FLEXI"
-ACC_DEF_PENALTY = "2015 - Deferred Income - Penalty Fees - FLEXI"
-ACC_INTEREST_INCOME = "HP Interest Income - FLEXI"
-ACC_ADMIN_FEE = "Admin Fee Income - FLEXI"
-ACC_DOC_FEE = "Documentation Fee Income - FLEXI"
-ACC_VAT_OUTPUT = "VAT - GST Output Tax - FLEXI"
-ACC_PENALTY_INCOME = "Default - Penalty Income - FLEXI"
-ACC_CHD_PAYABLE = "Trade Payables - related parties - CHD - FLEXI"
+# Ledger accounts are found by ACCOUNT NUMBER, not by name.  The Chart of
+# Accounts Importer builds names as "<number> - <name> - <abbr>", so names differ
+# between sites, but the numbers in setup_data/chart_of_accounts_flexi.csv do not.
+ACCOUNT_NUMBERS = {
+	"ACC_RECEIVABLE": "1101",       # HP Receivables - Current (loan account)
+	"ACC_CLEARING": "1180",         # HP Goods Clearing Contra (owed to CHD)
+	"ACC_DEPOSITS": "2010",         # Customer HP Deposits
+	"ACC_DEF_INTEREST": "2013",     # Deferred HP Interest
+	"ACC_DEF_PENALTY": "2015",      # Deferred Income - Penalty Fees
+	"ACC_INTEREST_INCOME": "4001",  # HP Interest Income
+	"ACC_ADMIN_FEE": "4002",        # Admin Fee Income
+	"ACC_DOC_FEE": "4003",          # Documentation Fee Income
+	"ACC_PENALTY_INCOME": "4004",   # Default - Penalty Income
+	"ACC_VAT_OUTPUT": "2310",       # VAT - GST Output Tax
+	"ACC_CHD_PAYABLE": "2111",      # Trade Payables - related parties - CHD
+	"ACC_BAD_DEBT": "5008",         # Bad Debt Expense
+	"ACC_EARLY_SETTLEMENT": "5027", # Early Settlement Discounts
+}
+ACCOUNT_LABELS = {
+	"ACC_RECEIVABLE": "HP Receivables - Current", "ACC_CLEARING": "HP Goods Clearing Contra",
+	"ACC_DEPOSITS": "Customer HP Deposits", "ACC_DEF_INTEREST": "Deferred HP Interest",
+	"ACC_DEF_PENALTY": "Deferred Income - Penalty Fees", "ACC_INTEREST_INCOME": "HP Interest Income",
+	"ACC_ADMIN_FEE": "Admin Fee Income", "ACC_DOC_FEE": "Documentation Fee Income",
+	"ACC_PENALTY_INCOME": "Default - Penalty Income", "ACC_VAT_OUTPUT": "VAT - GST Output Tax",
+	"ACC_CHD_PAYABLE": "Trade Payables - related parties - CHD", "ACC_BAD_DEBT": "Bad Debt Expense",
+	"ACC_EARLY_SETTLEMENT": "Early Settlement Discounts",
+}
+REQUIRED_ACCOUNTS = list(ACCOUNT_NUMBERS)
 
-REQUIRED_ACCOUNTS = [
-	ACC_RECEIVABLE, ACC_CLEARING, ACC_DEPOSITS, ACC_DEF_INTEREST, ACC_DEF_PENALTY, ACC_INTEREST_INCOME,
-	ACC_ADMIN_FEE, ACC_DOC_FEE, ACC_VAT_OUTPUT, ACC_PENALTY_INCOME, ACC_CHD_PAYABLE,
-]
+
+def account(key, company=None):
+	"""Account name for a key such as ``ACC_DEF_INTEREST``; throws if the Chart lacks it."""
+	name = frappe.db.get_value(
+		"Account", {"company": company or COMPANY, "account_number": ACCOUNT_NUMBERS[key], "is_group": 0}, "name"
+	)
+	if not name:
+		frappe.throw(
+			f"Account number {ACCOUNT_NUMBERS[key]} ({ACCOUNT_LABELS[key]}) is missing from the Chart of Accounts. "
+			"Import setup_data/chart_of_accounts_flexi.csv."
+		)
+	return name
+
+
+def __getattr__(name):
+	# ``s.ACC_DEF_INTEREST`` keeps working: it is looked up when first used.
+	if name in ACCOUNT_NUMBERS:
+		return account(name)
+	raise AttributeError(name)
+
 
 # The loan is NPA, and late-payment charges stop, at this many days past due.
 NPA_DAYS_PAST_DUE = 90
@@ -47,11 +80,14 @@ def check_setup():
 	"""Report what is missing for the HP model.  Changes nothing."""
 	frappe.only_for(("System Manager", "Loan Manager"))
 	problems = []
-	for account in REQUIRED_ACCOUNTS:
-		if not frappe.db.exists("Account", account):
-			problems.append(f"Missing account: {account}")
-		elif frappe.db.get_value("Account", account, "disabled"):
-			problems.append(f"Account is disabled: {account}")
+	for key, number in ACCOUNT_NUMBERS.items():
+		row = frappe.db.get_value(
+			"Account", {"company": COMPANY, "account_number": number}, ["name", "disabled", "is_group"], as_dict=True
+		)
+		if not row:
+			problems.append(f"Missing account {number} - {ACCOUNT_LABELS[key]}")
+		elif row.disabled or row.is_group:
+			problems.append(f"Account {row.name} must be enabled and not a group")
 	if not frappe.db.exists("Supplier", CHD_SUPPLIER):
 		problems.append(f"Missing supplier: {CHD_SUPPLIER}")
 	if not frappe.db.exists("Item", HP_ITEM_CODE):

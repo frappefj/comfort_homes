@@ -318,45 +318,49 @@ def log_loan_application_workflow_note(docname, action, from_state, to_state, no
 
 
 @frappe.whitelist()
-def create_deposit_sales_invoice(loan_application):
-	"""Create or reopen the draft deposit invoice directly from a Loan Application."""
+def create_deposit_payment_entry(loan_application):
+	"""Open (or create) the draft Payment Entry that records the customer's deposit.
+
+	No Sales Invoice is raised for the deposit.  The Payment Entry receives the money
+	into the bank account and holds it in Customer HP Deposits until disbursement,
+	when the Gross HP booking clears it.  The entry is linked on the application,
+	and the contract cannot move on until it is submitted (hp_lifecycle).
+	"""
+	from comfort_homes.hp_lending import hp_settings as hp
+
 	application = frappe.get_doc("Loan Application", loan_application)
-	if not frappe.has_permission(application.doctype, "write", doc=application):
+	if not frappe.has_permission("Payment Entry", "create"):
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
 	deposit = flt(application.get("custom_flexi_deposit_amount"))
 	if deposit <= 0:
-		frappe.throw(_("Enter a Loan Deposit Amount before creating its Sales Invoice."))
+		frappe.throw(_("There is no deposit on this application."))
 	if not application.applicant:
-		frappe.throw(_("A Customer is required on the Loan Application before creating the deposit invoice."))
-	existing = frappe.get_all(
-		"Sales Invoice", filters={"custom_loan_application": application.name, "docstatus": ["<", 2]}, fields=["name"], order_by="modified desc", limit_page_length=20
-	)
-	if existing:
-		deposit_lines = frappe.get_all(
-			"Sales Invoice Item",
-			filters={"parent": ["in", [row.name for row in existing]], "item_code": "Loan Deposit"},
-			fields=["parent"],
-			limit_page_length=1,
-		)
-		if deposit_lines:
-			application.db_set("custom_deposit_sales_invoice", deposit_lines[0].parent, update_modified=False)
-			return {"name": deposit_lines[0].parent, "existing": True}
+		frappe.throw(_("A Customer is required on the Loan Application before recording the deposit."))
 
-	invoice = frappe.get_doc(
-		{
-			"doctype": "Sales Invoice",
-			"company": application.company,
-			"customer": application.applicant,
-			"posting_date": today(),
-			"due_date": today(),
-			"custom_loan_application": application.name,
-			"cost_center": application.get("custom_branchlocation"),
-			"items": [{"item_code": "Loan Deposit", "qty": 1, "rate": deposit, "cost_center": application.get("custom_branchlocation")}],
-		}
-	)
-	invoice.insert()
-	application.db_set("custom_deposit_sales_invoice", invoice.name, update_modified=False)
-	return {"name": invoice.name, "existing": False}
+	existing = application.get("custom_hp_deposit_payment_entry")
+	if existing and frappe.db.get_value("Payment Entry", existing, "docstatus") != 2:
+		return {"name": existing, "existing": True}
+
+	company = application.company or hp.COMPANY
+	bank = frappe.db.get_value("Company", company, "default_bank_account")
+	entry = frappe.get_doc({
+		"doctype": "Payment Entry",
+		"payment_type": "Receive",
+		"company": company,
+		"posting_date": today(),
+		"party_type": "Customer",
+		"party": application.applicant,
+		"paid_from": hp.account("ACC_DEPOSITS", company),
+		"paid_to": bank,
+		"paid_amount": deposit,
+		"received_amount": deposit,
+		"reference_no": application.name,
+		"reference_date": today(),
+		"remarks": _("Hire purchase deposit for {0}").format(application.name),
+	})
+	entry.insert()
+	application.db_set("custom_hp_deposit_payment_entry", entry.name, update_modified=False)
+	return {"name": entry.name, "existing": False}
 
 
 @frappe.whitelist()

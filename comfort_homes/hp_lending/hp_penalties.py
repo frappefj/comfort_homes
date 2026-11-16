@@ -116,14 +116,17 @@ def realise_closed_loan_penalties():
 	done = []
 	rows = frappe.db.sql(
 		"""
-		SELECT lba.loan, SUM(lba.amount) AS total
+		SELECT lba.loan,
+		       SUM(CASE WHEN lba.adjustment_type = 'Debit Adjustment' AND lba.reference_number LIKE %s THEN lba.amount
+		                WHEN lba.adjustment_type = 'Credit Adjustment' AND lba.adjustment_account = %s THEN -lba.amount
+		                ELSE 0 END) AS total
 		FROM `tabLoan Balance Adjustment` lba
 		JOIN `tabLoan` l ON l.name = lba.loan
-		WHERE lba.docstatus = 1 AND lba.adjustment_type = 'Debit Adjustment'
-		  AND lba.reference_number LIKE %s AND l.status = 'Closed'
+		WHERE lba.docstatus = 1 AND l.status = 'Closed'
 		GROUP BY lba.loan
+		HAVING total > 0
 		""",
-		(f"{KEY}-%",),
+		(f"{KEY}-%", s.ACC_DEF_PENALTY),
 		as_dict=True,
 	)
 	for row in rows:

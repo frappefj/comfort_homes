@@ -1,5 +1,21 @@
 # Comfort Homes — Changelog
 
+## v0.0.6 (November 2026) — Gross HP rebuild, setup and settlement
+
+- Gross Hire Purchase model on native Lending: loan at 0% for the balance after deposit; one booking
+  journal at disbursement; monthly straight-line interest release; scheduled late-payment charge
+  (Loan Product fields, 2.5% a month, 7-day grace, stops at 90 days); penalties recognised on closure.
+- Ledger accounts are found by account number (`hp_settings.account`), so the Chart of Accounts
+  Importer's naming does not matter. New `setup_data/chart_of_accounts_flexi.csv` (107 accounts).
+- `hp_setup.setup_masters`: roles, Company loan accounting and NPA 90, CHD supplier, HP-GOODS item,
+  Loan Product HP-STD, demand offset order. Dry run by default.
+- `hp_settlement`: Rule of 78 early-settlement quote and rebate posting; write-off clearance of deferred
+  interest and penalties (hooked on Loan Write Off submit).
+- `hp_permissions`: minimal-access role matrix, plan first, apply on approval. No delete rights.
+- Deposit is a Payment Entry (button "Record Deposit Payment"); the Sales Invoice route is removed.
+- HP Customer Statement reads the deposit Payment Entry and shows rebates and waivers.
+- Removed duplicate stray report folder and the old deposit invoice client script.
+
 ## v2.3.0 (November 2026) — Configuration Fixes & Print Format Resolution
 
 ### Fixes
