@@ -34,6 +34,7 @@ def get_data(filters):
         return []
 
     loan = frappe.get_doc("Loan", loan_name)
+    loan.check_permission("read")
     application = None
     if loan.loan_application:
         application = frappe.get_doc("Loan Application", loan.loan_application)
@@ -44,7 +45,7 @@ def get_data(filters):
     # ── 1. Purchase items (from application) ──
     if application:
         for item in application.get("custom_flexi_purchase_items") or []:
-            amount = flt(item.get("quantity", 1)) * flt(item.get("unit_price", 0))
+            amount = flt(item.get("total_amount"), 2) if item.get("total_amount") is not None else round(flt(item.get("quantity", 1)) * flt(item.get("unit_price", 0)), 2)
             running_balance += amount
             rows.append({
                 "posting_date": application.get("creation"),
@@ -173,7 +174,7 @@ def get_data(filters):
         })
 
     # Sort all rows by date
-    rows.sort(key=lambda r: (getdate(r["posting_date"]), rows.index(r)))
+    rows.sort(key=lambda r: getdate(r["posting_date"]))
 
     # Recalculate running balance after sort
     running = 0

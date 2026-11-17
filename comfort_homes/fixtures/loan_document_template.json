@@ -57,7 +57,7 @@
   "template_type": "Print Format",
   "print_format": "Form 1",
   "html_template": null,
-  "requires_director_signature": 1,
+  "requires_director_signature": 0,
   "requires_customer_read": 1,
   "sequence": 3,
   "doctype": "Loan Document Template"
@@ -78,7 +78,7 @@
   "template_type": "Print Format",
   "print_format": "Form 2",
   "html_template": null,
-  "requires_director_signature": 1,
+  "requires_director_signature": 0,
   "requires_customer_read": 1,
   "sequence": 4,
   "doctype": "Loan Document Template"
@@ -118,11 +118,41 @@
   "requires_signature": 0,
   "requires_acknowledgement": 0,
   "template_type": "Print Format",
-  "print_format": null,
+  "print_format": "Application Print WIP",
   "html_template": null,
   "requires_director_signature": 0,
   "requires_customer_read": 0,
   "sequence": 7,
   "doctype": "Loan Document Template"
+ },
+ {
+  "doctype": "Loan Document Template",
+  "name": "LDT-00009",
+  "document_code": "FINANCIAL-OBLIGATIONS",
+  "document_name": "Summary of Financial Obligations",
+  "version": 1,
+  "status": "Current",
+  "template_type": "Print Format",
+  "print_format": "Summary of Financial Obligations",
+  "requires_signature": 1,
+  "requires_director_signature": 1,
+  "requires_acknowledgement": 1,
+  "requires_customer_read": 1,
+  "sequence": 5
+ },
+ {
+  "doctype": "Loan Document Template",
+  "name": "LDT-00010",
+  "document_code": "CONSENT-FORM",
+  "document_name": "Consent Form",
+  "version": 1,
+  "status": "Current",
+  "template_type": "Print Format",
+  "print_format": "Consent Form",
+  "requires_signature": 1,
+  "requires_director_signature": 0,
+  "requires_acknowledgement": 1,
+  "requires_customer_read": 1,
+  "sequence": 6
  }
 ]

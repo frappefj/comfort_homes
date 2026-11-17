@@ -30,8 +30,8 @@ def _amounts(application, loan_amount):
 
 def on_disbursement_submit(doc, method=None):
 	"""Post the Gross HP reclass once, when the Loan Disbursement is submitted."""
-	loan = frappe.get_cached_doc("Loan", doc.against_loan)
-	if not loan.get("loan_application"):
+	loan = frappe.get_doc("Loan", doc.against_loan)
+	if loan.company != s.COMPANY or not loan.get("loan_application"):
 		return
 	if s.entry_exists(TYPE_RECLASS, loan.name):
 		return
@@ -82,37 +82,70 @@ def on_disbursement_submit(doc, method=None):
 	je.submit()
 
 
-def validate_deposit_payment(doc, method=None):
-	"""A submitted deposit Payment Entry is required before the contract moves on.
+def check_deposit(application, require_submitted=True):
+	"""Bind one receipt to one application, customer, company and FJD ledger."""
+	from comfort_homes.hp_lending.hp_controls import deposit_issues
+	if flt(application.get("custom_flexi_deposit_amount"), 2) <= 0:
+		return
+	name = application.get("custom_hp_deposit_payment_entry")
+	if not name:
+		frappe.throw(_("Record and link the deposit Payment Entry before moving on."))
+	# Lock the receipt so competing application/disbursement checks serialize.
+	frappe.db.sql("SELECT name FROM `tabPayment Entry` WHERE name = %s FOR UPDATE", (name,))
+	payment = frappe.get_doc("Payment Entry", name)
+	problems = deposit_issues(application, payment, s.account("ACC_DEPOSITS", application.company), require_submitted)
+	bank = frappe.db.get_value("Account", payment.paid_to,
+		["company", "account_type", "disabled", "is_group"], as_dict=True)
+	if not bank or bank.company != application.company or bank.account_type not in ("Bank", "Cash") or bank.disabled or bank.is_group:
+		problems.append("Deposit destination must be an enabled company Bank or Cash leaf account")
+	other = frappe.db.exists("Loan Application", {
+		"custom_hp_deposit_payment_entry": name, "name": ["!=", application.name], "docstatus": ["!=", 2]})
+	if other:
+		problems.append("Deposit Payment Entry is already linked to another application")
+	if problems:
+		frappe.throw("; ".join(problems), title=_("Deposit Required"))
+	return payment
 
-	Replaces the earlier Sales Invoice gate.  Flexi raises no customer invoice
-	for the deposit; the Payment Entry is the proof of payment.
-	"""
+
+def validate_deposit_payment(doc, method=None):
+	"""Gate the existing contract-to-compliance transition without an invoice."""
 	previous = doc.get_doc_before_save()
 	if not previous:
 		return
 	from comfort_homes.loan_application_workflow import CONTRACT_STATES, POST_CONTRACT_STATES
+	if previous.workflow_state in CONTRACT_STATES and doc.workflow_state in POST_CONTRACT_STATES:
+		check_deposit(doc)
 
-	if previous.workflow_state not in CONTRACT_STATES or doc.workflow_state not in POST_CONTRACT_STATES:
-		return
-	deposit = flt(doc.get("custom_flexi_deposit_amount"), 2)
-	if deposit <= 0:
-		return
 
-	entry = doc.get("custom_hp_deposit_payment_entry")
-	if not entry:
-		frappe.throw(_("Record the deposit as a Payment Entry and link it before moving on."), title=_("Deposit Required"))
-	pe = frappe.db.get_value(
-		"Payment Entry", entry, ["docstatus", "payment_type", "party", "paid_amount"], as_dict=True
-	)
-	if not pe or pe.docstatus != 1:
-		frappe.throw(_("The deposit Payment Entry {0} must be submitted.").format(entry), title=_("Deposit Required"))
-	if pe.payment_type != "Receive":
-		frappe.throw(_("{0} is not a received payment.").format(entry), title=_("Deposit Required"))
-	if flt(pe.paid_amount, 2) != deposit:
-		frappe.throw(
-			_("Deposit Payment Entry {0} is {1}, but the deposit on the application is {2}.").format(
-				entry, pe.paid_amount, deposit
-			),
-			title=_("Deposit Required"),
-		)
+def validate_disbursement(doc, method=None):
+	"""Recheck financial authority immediately before native submission."""
+	loan = frappe.get_doc("Loan", doc.against_loan)
+	if loan.company != s.COMPANY or not loan.get("loan_application"):
+		return
+	if s.RELEASE_BLOCKERS:
+		frappe.throw("; ".join(s.RELEASE_BLOCKERS))
+	frappe.db.sql("SELECT name FROM `tabLoan` WHERE name = %s FOR UPDATE", (loan.name,))
+	application = frappe.get_doc("Loan Application", loan.loan_application)
+	if application.company != loan.company or application.applicant != loan.applicant or application.docstatus != 1 or application.status != "Approved":
+		frappe.throw("HP disbursement requires the matching submitted, approved customer application")
+	if doc.disbursement_account != s.account("ACC_CLEARING", loan.company):
+		frappe.throw("Gross HP disbursement must credit the goods clearing account")
+	if doc.get("bank_account") or doc.get("withhold_security_deposit") or flt(doc.get("broken_period_interest")) or any(flt(row.get("amount")) for row in doc.get("loan_disbursement_charges") or []):
+		frappe.throw("HP goods disbursement must not add a bank payout, security withholding or native charges")
+	if loan.rate_of_interest != 0:
+		frappe.throw("Gross HP servicing interest must be zero; do not disburse this loan")
+	if flt(doc.disbursed_amount, 2) != flt(application.custom_flexi_total_receivable, 2):
+		frappe.throw("HP disbursement must equal the whole approved post-deposit balance")
+	if frappe.db.exists("Loan Disbursement", {"against_loan": loan.name, "docstatus": 1, "name": ["!=", doc.name]}):
+		frappe.throw("This HP loan already has a submitted disbursement")
+	from comfort_homes.document_controls import validate_signed_pack
+	validate_signed_pack(application)
+	check_deposit(application)
+
+
+def enforce_clearing_account(doc, method=None):
+    """Draft validation: a customer collection preference is not a goods payout."""
+    loan = frappe.get_doc("Loan", doc.against_loan)
+    if loan.company == s.COMPANY and loan.get("loan_application"):
+        doc.disbursement_account = s.account("ACC_CLEARING", loan.company)
+        doc.mode_of_payment = None

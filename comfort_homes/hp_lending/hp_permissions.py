@@ -21,11 +21,11 @@ import frappe
 MATRIX = {
 	"Loan Application": {
 		"Loan LOS User": "rwc", "Loan Officer": "rw", "Loan Processor": "rw", "Finance Manager": "rw",
-		"Director": "rw", "Disbursement Officer": "rws", "Accounts Officer": "rw",
+		"Director": "rw", "Disbursement Officer": "rws", "Accounts Officer": "rw", "Accounts Manager": "r",
 		"Loan Manager": "rwcxa", "Loan Reporter": "r", "Auditor": "r", "System Manager": "r",
 	},
 	"Co-Applicant": {
-		"Loan LOS User": "rwc", "Loan Officer": "rw", "Loan Processor": "r", "Loan Manager": "rwcxa",
+		"Loan LOS User": "rwc", "Loan Officer": "rw", "Loan Processor": "rw", "Finance Manager": "rw", "Director": "rw", "Loan Manager": "rwc",
 		"Loan Reporter": "r", "Auditor": "r", "System Manager": "r",
 	},
 	"Loan": {
@@ -71,6 +71,17 @@ MATRIX = {
 	},
 }
 
+
+# Assessment field-level access is separate from document create/submit rights.
+ASSESSMENT = {
+	"Loan Application": {"Loan LOS User": "r", "Loan Officer": "rw", "Loan Processor": "rw",
+		"Finance Manager": "rw", "Director": "rw", "Loan Manager": "rw", "Auditor": "r",
+		"Loan Reporter": "r", "Disbursement Officer": "r", "Accounts Officer": "r", "Accounts Manager": "r", "System Manager": "r"},
+	"Co-Applicant": {"Loan LOS User": "r", "Loan Officer": "rw", "Loan Processor": "rw",
+		"Finance Manager": "rw", "Director": "rw", "Loan Manager": "rw", "Auditor": "r", "Loan Reporter": "r", "System Manager": "r"},
+}
+MATRIX["Loan Bank Reconciliation"] = {"Accounts Officer": "rwc", "Accounts Manager": "rwc", "Finance Manager": "r", "Auditor": "r", "System Manager": "r"}
+
 # (doctype, role) pairs whose rows are simply removed.  Rights that should never have existed.
 REMOVE = [
 	("Contact", "Guest"), ("Address", "Guest"), ("Contact", "All"), ("File", "All"),
@@ -80,49 +91,60 @@ REMOVE = [
 FLAGS = {"r": "read", "w": "write", "c": "create", "s": "submit", "x": "cancel", "a": "amend"}
 
 
-def _row(doctype, role, letters):
+def _row(doctype, role, letters, permlevel=0):
 	row = {"doctype": "Custom DocPerm", "parent": doctype, "parenttype": "DocType", "parentfield": "permissions",
-		"role": role, "permlevel": 0, "delete": 0}
+		"role": role, "permlevel": permlevel, "delete": 0, "share": 0, "email": 0, "import": 0}
 	for letter, field in FLAGS.items():
 		row[field] = 1 if letter in letters else 0
 	if "r" in letters:
-		row.update({"report": 1, "export": 1, "print": 1, "email": 1})
+		row.update({"report": 1, "export": int(role in ("Auditor", "Loan Reporter", "Accounts Manager", "Finance Manager")), "print": 1})
 	return row
+
+
+PERMISSION_FIELDS = ["role", "permlevel", "if_owner", "read", "write", "create", "delete", "submit", "cancel", "amend", "report", "export", "print", "email", "share", "import"]
+
+
+def desired_rows(doctype, roles):
+	rows = [_row(doctype, role, letters) for role, letters in MATRIX[doctype].items() if role in roles]
+	rows.extend(_row(doctype, role, letters, 1) for role, letters in ASSESSMENT.get(doctype, {}).items() if role in roles)
+	return rows
 
 
 def plan():
 	changes = {"replace": {}, "remove": [], "missing_roles": []}
 	roles = set(frappe.get_all("Role", pluck="name"))
-	for doctype, grants in MATRIX.items():
-		current = frappe.get_all("Custom DocPerm", filters={"parent": doctype}, fields=["role", "read", "write", "create", "delete", "submit", "cancel", "amend"])
+	for doctype in MATRIX:
+		current = frappe.get_all("Custom DocPerm", filters={"parent": doctype}, fields=PERMISSION_FIELDS)
 		changes["replace"][doctype] = {
-			"before": sorted(f"{r.role}:{''.join(l for l, f in FLAGS.items() if r.get(f))}{'d' if r.get('delete') else ''}" for r in current),
-			"after": sorted(f"{role}:{letters}" for role, letters in grants.items() if role in roles),
+			"before": [dict(row) for row in current] if current else [dict(row) for row in frappe.get_all("DocPerm", filters={"parent": doctype}, fields=PERMISSION_FIELDS)],
+			"before_source": "Custom DocPerm" if current else "DocPerm",
+			"custom_before": [dict(row) for row in current],
+			"after": [{key: row.get(key, 0) for key in PERMISSION_FIELDS} for row in desired_rows(doctype, roles)],
 		}
-		for role in grants:
+		for role in set(MATRIX[doctype]) | set(ASSESSMENT.get(doctype, {})):
 			if role not in roles and role not in changes["missing_roles"]:
 				changes["missing_roles"].append(role)
 	for doctype, role in REMOVE:
-		names = frappe.get_all("Custom DocPerm", filters={"parent": doctype, "role": role}, pluck="name")
-		if names:
-			changes["remove"].append(f"{doctype} / {role}")
+		if frappe.db.exists("Custom DocPerm", {"parent": doctype, "role": role}):
+			changes["remove"].append({"doctype": doctype, "role": role})
 	return changes
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def apply(dry_run=1):
 	"""Plan by default.  With dry_run=0, replace the rows.  System Manager only."""
 	frappe.only_for("System Manager")
 	result = plan()
 	if int(dry_run):
 		return {"dry_run": 1, **result}
+	if result["missing_roles"]:
+		frappe.throw("Create the missing workflow roles before applying permissions")
 	roles = set(frappe.get_all("Role", pluck="name"))
 	for doctype, grants in MATRIX.items():
 		for name in frappe.get_all("Custom DocPerm", filters={"parent": doctype}, pluck="name"):
 			frappe.delete_doc("Custom DocPerm", name, force=1, ignore_permissions=True)
-		for role, letters in grants.items():
-			if role in roles:
-				frappe.get_doc(_row(doctype, role, letters)).insert(ignore_permissions=True)
+		for row in desired_rows(doctype, roles):
+			frappe.get_doc(row).insert(ignore_permissions=True)
 		frappe.clear_cache(doctype=doctype)
 	for doctype, role in REMOVE:
 		for name in frappe.get_all("Custom DocPerm", filters={"parent": doctype, "role": role}, pluck="name"):

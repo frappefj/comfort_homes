@@ -1,0 +1,28 @@
+[
+ {
+  "doctype": "Workflow Transition Tasks",
+  "name": "Flexi Generate LPO",
+  "tasks": [
+   {
+    "doctype": "Workflow Transition Task",
+    "task": "Server Script",
+    "link": "Auto Create Draft PO on Loan Activation",
+    "enabled": 1,
+    "asynchronous": 0
+   }
+  ]
+ },
+ {
+  "doctype": "Workflow Transition Tasks",
+  "name": "Flexi Loan Application Transition Tasks",
+  "tasks": [
+   {
+    "doctype": "Workflow Transition Task",
+    "task": "Server Script",
+    "link": "Flexi Loan Application Workflow Task",
+    "enabled": 1,
+    "asynchronous": 0
+   }
+  ]
+ }
+]

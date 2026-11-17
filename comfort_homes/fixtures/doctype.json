@@ -673,6 +673,15 @@
     "translatable": 0,
     "unique": 0,
     "width": null
+   },
+   {
+    "doctype": "DocField",
+    "fieldname": "statement_transaction_key",
+    "fieldtype": "Data",
+    "label": "Statement Transaction Key",
+    "read_only": 1,
+    "hidden": 1,
+    "no_copy": 1
    }
   ],
   "force_re_route_to_default_view": 0,

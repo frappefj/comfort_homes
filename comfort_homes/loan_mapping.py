@@ -92,7 +92,7 @@ def apply_temporary_repayment_tenure_to_disbursement(doc, method=None):
 		return
 
 	loan = frappe.get_doc("Loan", doc.against_loan)
-	if not _eligible_temporary_tenure_loan(loan):
+	if loan.get("is_imported") or not loan.get("loan_application") or loan.get("loan_restructure") or loan.get("restructure_type"):
 		return
 
 	application = frappe.get_doc("Loan Application", loan.loan_application)
@@ -127,8 +127,13 @@ def apply_loan_application_values(doc, method=None):
 	"""Set Loan terms when a Loan is first created from a Loan Application."""
 	if not doc.is_new() or not doc.loan_application:
 		return
+	from comfort_homes.hp_lending.hp_settings import COMPANY
+	if doc.company != COMPANY:
+		return
 
 	application = frappe.get_doc("Loan Application", doc.loan_application)
+	if application.company != doc.company:
+		frappe.throw("Loan and application must belong to the same company")
 	preference = application.get("custom_flexi_payment_period")
 	doc.repayment_start_date = application.get("custom_flexi_first_instalment_date")
 	doc.repayment_frequency = FREQUENCY_MAP.get(preference, doc.repayment_frequency)
@@ -136,9 +141,9 @@ def apply_loan_application_values(doc, method=None):
 	# balance after the deposit as equal principal-only instalments at 0%.  The
 	# contract rate stays on the Loan Product and the agreement.
 	doc.loan_amount = application.get("custom_flexi_total_receivable") or doc.loan_amount
-	doc.custom_hp_contract_rate = doc.get("rate_of_interest")
+	doc.custom_hp_contract_rate = flt(application.get("custom_flexi_interest_rate"))
 	doc.rate_of_interest = 0
-	doc.cost_center = application.get("custom_branchlocation") or doc.cost_center
+	doc.cost_center = application.get("custom_branchlocation") or doc.cost_center or frappe.db.get_value("Company", doc.company, "cost_center")
 	doc.custom_mode_of_payment = MODE_OF_PAYMENT_MAP.get(
 		application.get("custom_flexi_payment_method"), application.get("custom_flexi_payment_method")
 	)

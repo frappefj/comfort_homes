@@ -1,0 +1,50 @@
+"""Integration-source assertions; require a complete checkout, not just the harness."""
+import ast
+import json
+from pathlib import Path
+import unittest
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def assignment(name):
+    tree = ast.parse((ROOT / "hooks.py").read_text())
+    return ast.literal_eval(next(n.value for n in tree.body if isinstance(n, ast.Assign)
+                                  and any(isinstance(t, ast.Name) and t.id == name for t in n.targets)))
+
+
+@unittest.skipUnless((ROOT / "hooks.py").is_file(), "Requires complete checkout after version-checked patch staging")
+class TestOriginationWiring(unittest.TestCase):
+    def test_native_finalisation_hook_is_registered(self):
+        events = assignment("doc_events")
+        callback = "comfort_homes.loan_application_workflow.calculate_financials"
+        self.assertIn(callback, events["Loan Application"]["before_validate"])
+        self.assertEqual(events["Loan Application"]["before_save"], [callback, "comfort_homes.document_controls.validate_application"])
+        self.assertEqual(events["Co-Applicant"]["before_validate"], "comfort_homes.origination.apply_profile")
+
+    def test_dependencies_precede_workflow(self):
+        names = sorted(p.name for p in (ROOT / "fixtures").glob("*.json"))
+        self.assertNotIn("workflow.json", names)
+        self.assertLess(names.index("00_00_role.json"), names.index("00_co_applicant_schema.json"))
+        self.assertLess(names.index("server_script.json"), names.index("workflow_transition_tasks.json"))
+        self.assertLess(names.index("workflow_transition_tasks.json"), names.index("zz_workflow.json"))
+
+    def test_export_keeps_dependency_records(self):
+        fixtures = assignment("fixtures")
+        by_type = {r["dt"]: r for r in fixtures if isinstance(r, dict)}
+        self.assertEqual(by_type["Workflow"]["prefix"], "zz")
+        self.assertEqual(by_type["Role"]["prefix"], "00_00")
+        self.assertIn("Workflow Transition Tasks", by_type)
+        self.assertIn("Loan Document Template", by_type["Custom Field"]["filters"][0][2])
+
+    def test_workflow_task_references_have_fixtures(self):
+        groups = json.loads((ROOT / "fixtures/workflow_transition_tasks.json").read_text())
+        group_names = {r["name"] for r in groups}
+        workflow = json.loads((ROOT / "fixtures/zz_workflow.json").read_text())[0]
+        references = {r["transition_tasks"] for r in workflow["transitions"] if r.get("transition_tasks")}
+        self.assertLessEqual(references, group_names)
+
+    def test_replaced_scripts_remain_disabled(self):
+        scripts = {r["name"]: r for r in json.loads((ROOT / "fixtures/server_script.json").read_text())}
+        for name in ("Calculations", "Flexi Flat Repayment Schedule Sync", "Auto Create Draft PO on Loan Activation After Submission"):
+            self.assertTrue(scripts[name]["disabled"], name)

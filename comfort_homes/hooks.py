@@ -10,17 +10,24 @@ app_license = "mit"
 # Do not also load that calculation bridge as a Web Form/website asset: multiple
 # copies register competing Currency input listeners and can corrupt a value
 # while a customer is typing it.
-web_include_js = ["public/js/loan_application_branch_filter.js"]
+app_include_js = ["/assets/comfort_homes/js/hp_origination_math.js"]
+web_include_js = ["/assets/comfort_homes/js/hp_origination_math.js", "public/js/loan_application_branch_filter.js"]
 
 doctype_js = {
 	"Loan": "public/js/loan_temporary_repayment_tenure.js",
+	"Co-Applicant": ["public/js/co_applicant_profile.js", "public/js/document_evidence.js"],
 	"Loan Application": [
 		"public/js/loan_application_branch_filter.js",
 		"public/js/loan_application_co_applicant.js",
 		"public/js/loan_application_workflow_notes.js",
 		"public/js/loan_application_signed_pack.js",
+		"public/js/document_evidence.js",
 	]
 }
+extend_doctype_class = {
+	"Loan": ["comfort_homes.hp_lending.loan_extension.GrossHPLoanMixin"],
+}
+
 override_doctype_dashboards = {
 	"Loan Application": "comfort_homes.loan_mapping.get_loan_application_dashboard_data",
 }
@@ -29,7 +36,7 @@ after_migrate = [
 	"comfort_homes.co_applicant.configure_co_applicant_profile",
 	# This is deliberately the full app-owned setup, not merely the legacy CSS
 	# cleanup.  It syncs all seven reviewed formats and backfills the non-signing
-	# Assessment document row on existing Loan Applications.
+	# Assessment template. Existing records require an explicit backfill.
 	"comfort_homes.webform_setup.setup_web_form_and_print_formats",
 ]
 # A first-time app installation performs fixture sync but not an ordinary site
@@ -80,7 +87,7 @@ fixtures = [
 		# Flexi extends Lending's standard DocTypes through Custom Field records.
 		# Keeping the complete set here makes a fresh installation reproduce the
 		# same Loan Application layout and database columns as the working site.
-		"filters": [["dt", "in", ["Loan Application", "Loan", "Loan Product", "Journal Entry", "Loan Disbursement", "Sales Invoice", "Purchase Order", "Purchase Invoice", "Customer", "Contact"]]],
+		"filters": [["dt", "in", ["Loan Application", "Loan", "Loan Product", "Journal Entry", "Loan Disbursement", "Sales Invoice", "Purchase Order", "Purchase Invoice", "Customer", "Contact", "Loan Document Template", "Co-Applicant", "Loan Customer Agreement"]]],
 	},
 	{
 		"dt": "Property Setter",
@@ -96,6 +103,14 @@ fixtures = [
 			"Flexi Customer Document Signing",
 			"Flexi Customer Document Signing Order",
 			"Flexi Loan Bank Reconciliation",
+			"Loan Application",
+			"Co-Applicant",
+			"Flexi Applicant Name Synchronisation",
+			"Flexi Applicant Name Synchronisation - Co-Applicant",
+			"Flexi Employment Period Calculation",
+			"Flexi Employment Period Calculation - Co-Applicant",
+			"Flexi CIRA Authority Desk Flow",
+			"Flexi Loan Application Calculations",
 		]]],
 	},
 	{
@@ -137,6 +152,8 @@ fixtures = [
 		"dt": "Loan Document Template",
 		"filters": [["document_code", "in", [
 			"APPLICATION-ASSESSMENT",
+			"FINANCIAL-OBLIGATIONS",
+			"CONSENT-FORM",
 			"FORM-1",
 			"FORM-2",
 			"HP-AGREEMENT",
@@ -151,12 +168,25 @@ fixtures = [
 		"filters": [["name", "=", "loan-application-new"]],
 	},
 	{
+		"dt": "Role",
+		"prefix": "00_00",
+		"filters": [["name", "in", ['Loan LOS User', 'Loan Officer', 'Loan Processor', 'Finance Manager', 'Director', 'Disbursement Officer', 'Accounts Officer', 'Accounts Manager', 'Loan Manager', 'Loan Reporter', 'Auditor']]],
+	},
+	{
+		"dt": "Workflow Transition Tasks",
+		"filters": [["name", "in", ["Flexi Generate LPO", "Flexi Loan Application Transition Tasks"]]],
+	},
+	{
 		"dt": "Workflow",
-		"filters": [["name", "=", "Loan Application Workflow-1"]],
+		"prefix": "zz",
+		"filters": [["name", "in", ["Loan Application Workflow-1", "Co-Applicant Profile Review"]]],
 	},
 ]
 
 doc_events = {
+	"Loan Customer Agreement": {
+		"before_save": "comfort_homes.document_controls.validate_agreement",
+	},
 	"Loan": {
 		"before_validate": [
 			"comfort_homes.loan_mapping.apply_loan_application_values",
@@ -164,6 +194,8 @@ doc_events = {
 		]
 	},
 	"Loan Disbursement": {
+		"validate": "comfort_homes.hp_lending.hp_lifecycle.enforce_clearing_account",
+		"before_submit": "comfort_homes.hp_lending.hp_lifecycle.validate_disbursement",
 		"on_submit": "comfort_homes.hp_lending.hp_lifecycle.on_disbursement_submit",
 		"before_validate": [
 			"comfort_homes.loan_mapping.apply_loan_values_to_disbursement",
@@ -180,6 +212,8 @@ doc_events = {
 		"before_validate": "comfort_homes.loan_mapping.apply_purchase_invoice_loan_application",
 	},
 	"Loan Application": {
+		"before_save": ["comfort_homes.loan_application_workflow.calculate_financials", "comfort_homes.document_controls.validate_application"],
+		"before_submit": ["comfort_homes.loan_application_workflow.calculate_financials", "comfort_homes.document_controls.validate_application"],
 		"before_insert": "comfort_homes.loan_application_workflow.validate_public_application_not_existing_customer",
 		"before_validate": [
 			"comfort_homes.signed_pack.ensure_assessment_customer_document",
@@ -190,6 +224,8 @@ doc_events = {
 		],
 	},
 	"Co-Applicant": {
+		"before_validate": "comfort_homes.origination.apply_profile",
+		"before_save": ["comfort_homes.origination.apply_profile", "comfort_homes.document_controls.validate_profile"],
 		"after_insert": "comfort_homes.co_applicant.sync_linked_loan_application",
 		"on_update": "comfort_homes.co_applicant.sync_linked_loan_application",
 	},

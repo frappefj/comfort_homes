@@ -1,13 +1,14 @@
 """Bank-statement import and Loan Repayment actions for Comfort Homes."""
 
 import csv
+import hashlib
 import re
 from datetime import date, datetime
 from io import BytesIO, StringIO
 
 import frappe
 from frappe import _
-from frappe.utils import flt, today
+from frappe.utils import flt, getdate, today
 
 
 DEFAULT_COMPANY = "Comfort Home Furnishing PTE Limited"
@@ -97,6 +98,7 @@ def _file(doc):
 	if not name:
 		frappe.throw(_("The attached statement file could not be found."))
 	file_doc = frappe.get_doc("File", name)
+	file_doc.check_permission("read")
 	return file_doc.get_content(), file_doc.file_name or doc.statement_file
 
 
@@ -202,15 +204,18 @@ def _customer_and_loan(description, card_id):
 @frappe.whitelist()
 def analyse_statement(name):
 	doc = frappe.get_doc("Loan Bank Reconciliation", name)
+	doc.check_permission("read")
 	content, filename = _file(doc)
 	tables = _tables(content, filename)
 	return {"file_name": filename, "columns": tables[0]["headers"], "mapping": tables[0]["mapping"], "sheets": [table["sheet"] for table in tables]}
 
 
-def _payment_account(bank_account):
-	bank = frappe.db.get_value("Bank Account", bank_account, ["account", "disabled", "is_company_account"], as_dict=True)
+def _payment_account(bank_account, company=None):
+	bank = frappe.db.get_value("Bank Account", bank_account, ["account", "disabled", "is_company_account", "company"], as_dict=True)
 	if not bank or bank.disabled or not bank.is_company_account or not bank.account:
 		frappe.throw(_("Select an active company Bank Account with a linked ledger account."))
+	if company and bank.company != company:
+		frappe.throw("Bank Account belongs to a different company")
 	return bank.account
 
 
@@ -289,7 +294,7 @@ def _existing_customer_match(tin_number=None, email=None):
 	return {"exists": bool(matched_by), "matched_by": matched_by}
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def log_loan_application_workflow_note(docname, action, from_state, to_state, note):
 	"""Record an immutable workflow note in the Loan Application activity timeline."""
 	doc = frappe.get_doc("Loan Application", docname)
@@ -317,7 +322,7 @@ def log_loan_application_workflow_note(docname, action, from_state, to_state, no
 	return {"ok": True}
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def create_deposit_payment_entry(loan_application):
 	"""Open (or create) the draft Payment Entry that records the customer's deposit.
 
@@ -329,6 +334,10 @@ def create_deposit_payment_entry(loan_application):
 	from comfort_homes.hp_lending import hp_settings as hp
 
 	application = frappe.get_doc("Loan Application", loan_application)
+	application.check_permission("write")
+	frappe.db.sql("SELECT name FROM `tabLoan Application` WHERE name = %s FOR UPDATE", (application.name,))
+	if application.company != hp.COMPANY or application.applicant_type != "Customer":
+		frappe.throw("Deposit action is restricted to Flexi customer applications")
 	if not frappe.has_permission("Payment Entry", "create"):
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
 	deposit = flt(application.get("custom_flexi_deposit_amount"))
@@ -339,10 +348,14 @@ def create_deposit_payment_entry(loan_application):
 
 	existing = application.get("custom_hp_deposit_payment_entry")
 	if existing and frappe.db.get_value("Payment Entry", existing, "docstatus") != 2:
+		from comfort_homes.hp_lending.hp_lifecycle import check_deposit
+		check_deposit(application, require_submitted=False)
 		return {"name": existing, "existing": True}
 
 	company = application.company or hp.COMPANY
 	bank = frappe.db.get_value("Company", company, "default_bank_account")
+	if not bank:
+		frappe.throw("Configure the Company default bank before recording a deposit")
 	entry = frappe.get_doc({
 		"doctype": "Payment Entry",
 		"payment_type": "Receive",
@@ -363,9 +376,10 @@ def create_deposit_payment_entry(loan_application):
 	return {"name": entry.name, "existing": False}
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def loan_reconciliation(name, action, mapping=None, row_names=None):
 	doc = frappe.get_doc("Loan Bank Reconciliation", name)
+	doc.check_permission("write")
 	if doc.docstatus:
 		frappe.throw(_("Only a draft reconciliation can be changed."))
 	if action == "import_statement":
@@ -376,6 +390,7 @@ def loan_reconciliation(name, action, mapping=None, row_names=None):
 
 
 def import_statement(doc, mapping):
+	doc.check_permission("write")
 	if any(row.loan_repayment for row in doc.transactions):
 		frappe.throw(_("Create a new reconciliation for another import after repayments have been created."))
 	content, filename = _file(doc)
@@ -385,8 +400,9 @@ def import_statement(doc, mapping):
 		frappe.throw(_("Choose transaction date, description, and credit or amount columns."))
 	doc.transactions = []
 	imported = ready = review = 0
+	statement_hash = hashlib.sha256(content.encode() if isinstance(content, str) else content).hexdigest()
 	for table in tables:
-		for values in table["rows"]:
+		for row_index, values in enumerate(table["rows"]):
 			row = {header: values[index] if index < len(values) else "" for index, header in enumerate(table["headers"])}
 			transaction_date = _date(row.get(mapping["date"]))
 			description = str(row.get(mapping["description"]) or "").strip()
@@ -397,10 +413,10 @@ def import_statement(doc, mapping):
 			customer, loan, count = _customer_and_loan(description, card_id)
 			status = "Ready" if loan else "Choose Loan" if customer and count > 1 else "No Disbursed Loan" if customer else "Unmatched"
 			ready += int(bool(loan)); review += int(not loan)
-			doc.append("transactions", {"transaction_date": transaction_date, "description": description, "amount": amount, "customer_card_id": card_id, "customer": customer, "suggested_loan": loan, "loan": loan, "selected": int(bool(loan)), "status": status})
+			doc.append("transactions", {"statement_transaction_key": _statement_key(doc.bank_account, statement_hash, table["sheet"], row_index), "transaction_date": transaction_date, "description": description, "amount": amount, "customer_card_id": card_id, "customer": customer, "suggested_loan": loan, "loan": loan, "selected": int(bool(loan)), "status": status})
 			imported += 1
 	doc.update({"status": "Imported", "imported_transactions": imported, "ready_transactions": ready, "review_transactions": review})
-	doc.save(ignore_permissions=True)
+	doc.save()
 	return {"imported": imported, "ready": ready, "review": review, "format": filename}
 
 
@@ -420,7 +436,16 @@ def _cost_center_for_loan(loan):
 
 
 def create_repayments(doc, row_names=None):
-	account = _payment_account(doc.bank_account)
+	doc.check_permission("write")
+	frappe.has_permission("Loan Repayment", "create", throw=True)
+	frappe.has_permission("Loan Repayment", "submit", throw=True)
+	if doc.docstatus:
+		frappe.throw("Only a draft reconciliation can be changed")
+	# Serialise competing clicks before reloading the latest row links.
+	frappe.db.sql("SELECT name FROM `tabLoan Bank Reconciliation` WHERE name = %s FOR UPDATE", (doc.name,))
+	doc.reload()
+	frappe.db.sql("SELECT name FROM `tabBank Account` WHERE name = %s FOR UPDATE", (doc.bank_account,))
+	account = _payment_account(doc.bank_account, doc.company or DEFAULT_COMPANY)
 	created = skipped = 0
 	errors = []
 	explicit_rows = set(row_names or [])
@@ -437,7 +462,9 @@ def create_repayments(doc, row_names=None):
 			row.update({"loan": None, "selected": 0, "status": "Unmatched"})
 			skipped += 1
 			continue
-		if frappe.db.get_value("Loan", loan, "applicant") != row.customer:
+		loan_doc = frappe.get_doc("Loan", loan)
+		loan_doc.check_permission("read")
+		if loan_doc.applicant != row.customer or loan_doc.company != (doc.company or DEFAULT_COMPANY):
 			row.update({"loan": None, "selected": 0, "status": "Choose Loan"})
 			skipped += 1
 			continue
@@ -445,7 +472,16 @@ def create_repayments(doc, row_names=None):
 		# valid selection is ready to post even if its earlier import status was
 		# "Choose Loan".
 		row.status = "Ready"
+		frappe.db.sql("SELECT name FROM `tabLoan` WHERE name = %s FOR UPDATE", (loan,))
+		frappe.db.savepoint("hp_bank_row")
 		try:
+			key = row.get("statement_transaction_key") or "HP-ROW-" + hashlib.sha256((doc.name + ":" + row.name).encode()).hexdigest()[:40]
+			existing = frappe.db.get_value("Loan Repayment", {"reference_number": key, "docstatus": ["!=", 2]}, ["name", "against_loan", "docstatus", "amount_paid", "value_date"], as_dict=True)
+			if existing:
+				if existing.against_loan != loan or existing.docstatus != 1 or flt(existing.amount_paid, 2) != flt(row.amount, 2) or getdate(existing.value_date) != getdate(row.transaction_date):
+					frappe.throw("Bank row already has a different or draft repayment; review the existing record")
+				row.update({"loan": loan, "loan_repayment": existing.name, "status": "Loan Repayment Created"})
+				continue
 			values = {
 				"doctype": "Loan Repayment",
 				"against_loan": loan,
@@ -454,17 +490,58 @@ def create_repayments(doc, row_names=None):
 				"value_date": row.transaction_date,
 				"amount_paid": row.amount,
 				"repayment_type": "Normal Repayment",
+				"reference_number": key,
+				"reference_date": row.transaction_date,
 				"bank_account": doc.bank_account,
 				"payment_account": account,
 			}
 			if cost_center := _cost_center_for_loan(loan):
 				values["cost_center"] = cost_center
 			repayment = frappe.get_doc(values)
-			repayment.insert(ignore_permissions=True); repayment.submit()
+			repayment.insert(); repayment.submit()
 			row.update({"loan": loan, "loan_repayment": repayment.name, "status": "Loan Repayment Created"}); created += 1
 		except Exception as error:
+			frappe.db.rollback(save_point="hp_bank_row")
 			row.status = "Error"; errors.append(f"{row.customer_card_id or row.name}: {str(error)[:120]}")
 	posted = sum(bool(row.loan_repayment) for row in doc.transactions)
 	doc.update({"created_repayments": posted, "status": "Reconciled" if posted and posted == len(doc.transactions) else "Partially Reconciled"})
-	doc.save(ignore_permissions=True)
+	doc.save()
 	return {"created": created, "skipped": skipped, "errors": errors[:10]}
+
+
+def _statement_key(bank_account, content_hash, sheet, row_index):
+	"""Exact-file re-import protection, not a claim to identify re-exported transactions."""
+	value = "|".join((str(bank_account), content_hash, str(sheet), str(row_index)))
+	return "HP-BANK-" + hashlib.sha256(value.encode()).hexdigest()[:40]
+
+
+@frappe.whitelist(methods=["GET", "POST"])
+def check_application_access(loan_application, write=0, agreement_row=None, company_signing=0, contract_signing=0):
+    """Shared access gate for retained safe-exec API scripts; returns no customer data."""
+    company_signing = int(company_signing)
+    write = int(write) or company_signing
+    if write and getattr(frappe.request, "method", None) != "POST":
+        frappe.throw("Document changes require POST")
+    if not loan_application:
+        frappe.throw("Loan Application is required")
+    if write:
+        frappe.db.sql("SELECT name FROM `tabLoan Application` WHERE name = %s FOR UPDATE", (loan_application,))
+    application = frappe.get_doc("Loan Application", loan_application)
+    application.check_permission("write" if write else "read")
+    if application.company != DEFAULT_COMPANY:
+        frappe.throw("This endpoint is restricted to Flexi applications")
+    if write and application.docstatus != 0:
+        frappe.throw("Submitted or cancelled application documents cannot be changed by this endpoint")
+    if company_signing:
+        frappe.only_for(("Director", "Finance Manager"))
+    if agreement_row:
+        row = frappe.get_doc("Loan Customer Agreement", agreement_row)
+        if row.parent != application.name or row.parenttype != "Loan Application" or row.parentfield != "custom_customer_documents":
+            frappe.throw("Agreement row does not belong to the selected application")
+        if write and row.get("status") == "Completed":
+            frappe.throw("Completed agreement evidence cannot be overwritten")
+    if int(contract_signing):
+        from comfort_homes.hp_lending.document_policy import DIGITAL_CONTRACT_SIGNING_ENABLED
+        if not DIGITAL_CONTRACT_SIGNING_ENABLED:
+            frappe.throw("Digital HP contract signing is not enabled; print, sign and upload the executed scan")
+    return True

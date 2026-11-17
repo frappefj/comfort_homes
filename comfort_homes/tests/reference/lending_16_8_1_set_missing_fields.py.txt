@@ -1,0 +1,12 @@
+# Reference only: frappe/lending v16.8.1, Loan.set_missing_fields
+def set_missing_fields(self):
+		if not self.company:
+			self.company = erpnext.get_default_company()
+
+		if not self.posting_date:
+			self.posting_date = nowdate()
+
+		if self.loan_product and not self.rate_of_interest:
+			self.rate_of_interest = frappe.get_cached_value(
+				"Loan Product", self.loan_product, "rate_of_interest"
+			)

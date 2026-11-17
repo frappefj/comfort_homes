@@ -4,7 +4,7 @@ function import_statement_dialog(frm, analysis) {
 	const dialog = new frappe.ui.Dialog({
 		title: "Review statement mapping",
 		fields: [
-			{ fieldname: "summary", fieldtype: "HTML", options: `<p>Detected ${analysis.file_name}. ${analysis.sheets.length > 1 ? `${analysis.sheets.length} sheets will be imported.` : ""}</p>` },
+			{ fieldname: "summary", fieldtype: "HTML", options: `<p>Detected ${frappe.utils.escape_html(analysis.file_name)}. ${analysis.sheets.length > 1 ? `${analysis.sheets.length} sheets will be imported.` : ""}</p>` },
 			{ fieldname: "date", label: "Transaction / value date column", fieldtype: "Select", options: columns, default: mapping.date, reqd: 1 },
 			{ fieldname: "description", label: "Description column", fieldtype: "Select", options: columns, default: mapping.description, reqd: 1 },
 			{ fieldname: "credit", label: "Credit / money received column", fieldtype: "Select", options: columns, default: mapping.credit },
@@ -71,13 +71,13 @@ frappe.ui.form.on("Loan Bank Reconciliation", {
 
 		if (frm.doc.transactions && frm.doc.transactions.length) {
 			frm.add_custom_button("Create Loan Repayments", () => {
-				const row_names = (frm.get_selected().transactions || []).map((row) => row.name);
+				const row_names = (frm.get_selected().transactions || []).map((row) => typeof row === "string" ? row : row.name);
 				const scope = row_names.length
 					? `Create repayments for the ${row_names.length} ticked row(s) that are ready?`
 					: "No rows are ticked. Create repayments for every ready row?";
 				frappe.confirm(
 					scope,
-					() => frappe.call({
+					() => Promise.resolve(frm.is_dirty() ? frm.save() : null).then(() => frappe.call({
 						method: "comfort_homes.api.loan_reconciliation",
 						args: { name: frm.doc.name, action: "create_repayments", row_names },
 						freeze: true,
@@ -85,11 +85,11 @@ frappe.ui.form.on("Loan Bank Reconciliation", {
 						callback(r) {
 							if (!r.exc) {
 								const errors = r.message.errors || [];
-								frappe.msgprint({ title: "Loan reconciliation", message: `${r.message.created} repayment(s) created. ${r.message.skipped} row(s) skipped.` + (errors.length ? `<br><br>${errors.join("<br>")}` : ""), indicator: errors.length ? "orange" : "green" });
+								frappe.msgprint({ title: "Loan reconciliation", message: `${r.message.created} repayment(s) created. ${r.message.skipped} row(s) skipped.` + (errors.length ? `<br><br>${errors.map(e => frappe.utils.escape_html(String(e))).join("<br>")}` : ""), indicator: errors.length ? "orange" : "green" });
 								frm.reload_doc();
 							}
 						}
-					})
+					}))
 				);
 			}, "Actions");
 		}

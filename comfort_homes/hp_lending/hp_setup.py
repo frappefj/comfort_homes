@@ -10,6 +10,8 @@ import frappe
 
 from comfort_homes.hp_lending import hp_settings as s
 
+OFFSET_FIELDS = ['collection_offset_sequence_for_standard_asset', 'collection_offset_sequence_for_sub_standard_asset', 'collection_offset_sequence_for_written_off_asset', 'collection_offset_sequence_for_settlement_collection']
+
 PRODUCT_CODE = "HP-STD"
 PRODUCT_NAME = "Hire Purchase - Standard"
 DEFAULT_CONTRACT_RATE = 22  # flat % per annum, shown on agreements; the loan itself runs at 0%
@@ -20,7 +22,7 @@ def _acc(key):
 
 
 def _by_number(number):
-	return frappe.db.get_value("Account", {"company": s.COMPANY, "account_number": number, "is_group": 0}, "name")
+	return frappe.db.get_value("Account", {"company": s.COMPANY, "account_number": number, "is_group": 0, "disabled": 0}, "name")
 
 
 def _plan():
@@ -32,8 +34,8 @@ def _plan():
 		plan.append(f"Create non-stock Item '{s.HP_ITEM_CODE}'")
 	if not frappe.db.exists("Loan Product", PRODUCT_CODE):
 		plan.append("Create Loan Product " + PRODUCT_CODE)
-	if not frappe.db.exists("Loan Demand Offset Order", "Standard Loan Demand Offset Order"):
-		plan.append("Create Loan Demand Offset Order 'Standard Loan Demand Offset Order'")
+	if not frappe.db.exists("Loan Demand Offset Order", "Flexi HP Demand Offset Order"):
+		plan.append("Create Loan Demand Offset Order 'Flexi HP Demand Offset Order'")
 	company = frappe.db.get_value("Company", s.COMPANY, ["enable_loan_accounting", "days_past_due_threshold"], as_dict=True)
 	if company and not company.enable_loan_accounting:
 		plan.append("Enable loan accounting on the Company")
@@ -43,13 +45,19 @@ def _plan():
 
 
 def _offset_order():
-	title = "Standard Loan Demand Offset Order"
-	if not frappe.db.exists("Loan Demand Offset Order", title):
-		doc = frappe.new_doc("Loan Demand Offset Order")
+	title = "Flexi HP Demand Offset Order"
+	exists = frappe.db.exists("Loan Demand Offset Order", title)
+	doc = frappe.get_doc("Loan Demand Offset Order", title) if exists else frappe.new_doc("Loan Demand Offset Order")
+	wanted = ["Penalty", "Interest", "Principal"]
+	if not exists or [row.demand_type for row in doc.get("components") or []] != wanted:
 		doc.title = title
-		for demand_type in ("Penalty", "Interest", "Principal"):
+		doc.set("components", [])
+		for demand_type in wanted:
 			doc.append("components", {"demand_type": demand_type})
-		doc.insert(ignore_permissions=True)
+		if exists:
+			doc.save(ignore_permissions=True)
+		else:
+			doc.insert(ignore_permissions=True)
 	return title
 
 
@@ -76,13 +84,14 @@ def _company():
 		"collection_offset_sequence_for_written_off_asset",
 		"collection_offset_sequence_for_settlement_collection",
 	):
-		if company.meta.has_field(field) and not company.get(field):
+		if company.meta.has_field(field):
 			company.set(field, order)
 	company.save(ignore_permissions=True)
 
 
 def _supplier():
 	if frappe.db.exists("Supplier", s.CHD_SUPPLIER):
+		_update_existing_mapping("Supplier", s.CHD_SUPPLIER, "accounts", "account", _acc("ACC_CHD_PAYABLE"), {"default_currency": "FJD"})
 		return
 	group = frappe.db.get_value("Supplier Group", {"is_group": 0}, "name") or "All Supplier Groups"
 	supplier = frappe.get_doc({
@@ -98,6 +107,7 @@ def _supplier():
 
 def _item():
 	if frappe.db.exists("Item", s.HP_ITEM_CODE):
+		_update_existing_mapping("Item", s.HP_ITEM_CODE, "item_defaults", "expense_account", _acc("ACC_CLEARING"), {"is_stock_item": 0, "is_sales_item": 0, "is_purchase_item": 1})
 		return
 	group = frappe.db.get_value("Item Group", {"is_group": 0}, "name") or "All Item Groups"
 	item = frappe.get_doc({
@@ -115,13 +125,14 @@ def _item():
 	item.insert(ignore_permissions=True)
 
 
-def _loan_product():
-	if frappe.db.exists("Loan Product", PRODUCT_CODE):
-		return
-	order = _offset_order()
-	bank = frappe.db.get_value("Account", {"company": s.COMPANY, "account_type": "Bank", "is_group": 0}, "name")
+def _product_values():
+	"""Read-only desired values; selecting the first bank is never acceptable."""
+	order = "Flexi HP Demand Offset Order"
+	bank = _by_number("1201")
+	if not bank or frappe.db.get_value("Account", bank, "account_type") != "Bank":
+		frappe.throw("Account 1201 must be the enabled BSP Flexi Bank leaf account")
 	recovery = _by_number("4006")
-	product = frappe.get_doc({
+	return {
 		"doctype": "Loan Product",
 		"company": s.COMPANY,
 		"product_code": PRODUCT_CODE,
@@ -132,8 +143,8 @@ def _loan_product():
 		"advance_payment_handling": "Reduce Tenure",
 		"penalty_interest_rate": 0,
 		"grace_period_in_days": s.GRACE_DAYS_DEFAULT,
-		"days_past_due_threshold_for_npa": s.NPA_DAYS_PAST_DUE,
-		"emi_rounding_method": "Round to Nearest",
+		"days_past_due_threshold_for_npa": s.NATIVE_NPA_THRESHOLD,
+		"emi_rounding_method": "No Rounding",
 		"custom_hp_penalty_rate_monthly": s.PENALTY_MONTHLY_RATE_DEFAULT,
 		"custom_hp_penalty_stop_dpd": s.NPA_DAYS_PAST_DUE,
 		# Lending requires all of these when loan accounting is on.
@@ -157,11 +168,79 @@ def _loan_product():
 		"collection_offset_sequence_for_sub_standard_asset": order,
 		"collection_offset_sequence_for_written_off_asset": order,
 		"collection_offset_sequence_for_settlement_collection": order,
-	})
-	product.insert(ignore_permissions=True)
+	}
 
 
-@frappe.whitelist()
+def _loan_product():
+	values = _product_values()
+	if frappe.db.exists("Loan Product", PRODUCT_CODE):
+		doc = frappe.get_doc("Loan Product", PRODUCT_CODE)
+		if any(doc.get(k) != value for k, value in values.items() if k != "doctype"):
+			doc.update({k: v for k, v in values.items() if k != "doctype"})
+			doc.save(ignore_permissions=True)
+	else:
+		frappe.get_doc(values).insert(ignore_permissions=True)
+
+
+def field_diffs():
+	"""Exact Company/Product differences plus current supplier/item mappings."""
+	diffs = []
+	title = "Flexi HP Demand Offset Order"
+	order = frappe.get_doc("Loan Demand Offset Order", title) if frappe.db.exists("Loan Demand Offset Order", title) else None
+	before_order = [row.demand_type for row in order.get("components") or []] if order else []
+	if before_order != ["Penalty", "Interest", "Principal"]:
+		diffs.append({"doctype": "Loan Demand Offset Order", "name": title, "field": "components", "before": before_order, "after": ["Penalty", "Interest", "Principal"]})
+	company = frappe.get_doc("Company", s.COMPANY)
+	wanted = {"enable_loan_accounting": 1, "days_past_due_threshold": 90}
+	for field in OFFSET_FIELDS:
+		if company.meta.has_field(field):
+			wanted[field] = "Flexi HP Demand Offset Order"
+	for field, value in wanted.items():
+		if company.get(field) != value:
+			diffs.append({"doctype": "Company", "name": s.COMPANY, "field": field, "before": company.get(field), "after": value})
+	product = frappe.get_doc("Loan Product", PRODUCT_CODE) if frappe.db.exists("Loan Product", PRODUCT_CODE) else None
+	for field, value in _product_values().items():
+		if field != "doctype" and (not product or product.get(field) != value):
+			diffs.append({"doctype": "Loan Product", "name": PRODUCT_CODE, "field": field, "before": product.get(field) if product else None, "after": value})
+	for dt, name, table, field, target in (
+		("Supplier", s.CHD_SUPPLIER, "accounts", "account", _acc("ACC_CHD_PAYABLE")),
+		("Item", s.HP_ITEM_CODE, "item_defaults", "expense_account", _acc("ACC_CLEARING")),
+	):
+		doc = frappe.get_doc(dt, name) if frappe.db.exists(dt, name) else None
+		rows = [row for row in (doc.get(table) or []) if row.company == s.COMPANY] if doc else []
+		before = rows[0].get(field) if len(rows) == 1 else None
+		if before != target or len(rows) > 1:
+			diffs.append({"doctype": dt, "name": name, "field": table + "." + field, "before": before, "after": target, "matching_rows": len(rows)})
+		if doc and dt == "Item":
+			for f, value in (("is_stock_item", 0), ("is_sales_item", 0), ("is_purchase_item", 1)):
+				if doc.get(f) != value:
+					diffs.append({"doctype": dt, "name": name, "field": f, "before": doc.get(f), "after": value})
+		if doc and dt == "Supplier" and doc.get("default_currency") != "FJD":
+			diffs.append({"doctype": dt, "name": name, "field": "default_currency", "before": doc.get("default_currency"), "after": "FJD"})
+	return diffs
+
+
+def _update_existing_mapping(doctype, name, table, field, target, values):
+	doc = frappe.get_doc(doctype, name)
+	rows = [row for row in doc.get(table) or [] if row.company == s.COMPANY]
+	if len(rows) > 1:
+		frappe.throw("Multiple company mappings on " + doctype + " " + name + "; review before setup")
+	changed = False
+	if not rows:
+		doc.append(table, {"company": s.COMPANY, field: target})
+		changed = True
+	elif rows[0].get(field) != target:
+		rows[0].set(field, target)
+		changed = True
+	for key, value in values.items():
+		if doc.get(key) != value:
+			doc.set(key, value)
+			changed = True
+	if changed:
+		doc.save(ignore_permissions=True)
+
+
+@frappe.whitelist(methods=["POST"])
 def setup_masters(dry_run=1):
 	"""Create the HP master data.  ``dry_run`` (default) only lists what it would do."""
 	frappe.only_for("System Manager")
@@ -169,12 +248,16 @@ def setup_masters(dry_run=1):
 	if not frappe.db.exists("Company", s.COMPANY):
 		frappe.throw(f"Company {s.COMPANY} does not exist yet.")
 	plan = _plan()
+	diffs = field_diffs()
 	if dry_run:
-		return {"dry_run": 1, "would_do": plan}
+		return {"dry_run": 1, "would_do": plan, "field_diffs": diffs}
 	_roles()
 	_company()
 	_supplier()
 	_item()
 	_loan_product()
+	check = s.check_setup()
+	if not check["ok"]:
+		frappe.throw("Setup validation failed; changes will roll back: " + "; ".join(check["problems"]))
 	frappe.db.commit()
-	return {"dry_run": 0, "done": plan, "check": s.check_setup()}
+	return {"dry_run": 0, "done": plan, "field_diffs": diffs, "check": check}

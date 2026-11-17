@@ -44,7 +44,7 @@ REQUIRED_ACCOUNTS = list(ACCOUNT_NUMBERS)
 def account(key, company=None):
 	"""Account name for a key such as ``ACC_DEF_INTEREST``; throws if the Chart lacks it."""
 	name = frappe.db.get_value(
-		"Account", {"company": company or COMPANY, "account_number": ACCOUNT_NUMBERS[key], "is_group": 0}, "name"
+		"Account", {"company": company or COMPANY, "account_number": ACCOUNT_NUMBERS[key], "is_group": 0, "disabled": 0}, "name"
 	)
 	if not name:
 		frappe.throw(
@@ -62,6 +62,11 @@ def __getattr__(name):
 
 
 # The loan is NPA, and late-payment charges stop, at this many days past due.
+# Approved: native strict-greater-than threshold 89 flags stored DPD 90.
+# Site installation and financial acceptance remain separate approvals.
+RELEASE_BLOCKERS = ()
+NATIVE_NPA_THRESHOLD = 89
+
 NPA_DAYS_PAST_DUE = 90
 GRACE_DAYS_DEFAULT = 7
 PENALTY_MONTHLY_RATE_DEFAULT = 2.5
@@ -75,47 +80,73 @@ def entry_exists(entry_type, loan, tag=None):
 	return bool(frappe.db.exists("Journal Entry", filters))
 
 
+NATIVE_ACCOUNT_TYPES = {
+	"1101": "Receivable", "2010": "Receivable", "2310": "Tax", "2111": "Payable",
+	"1105": "Receivable", "1106": "Receivable", "1107": "Receivable", "1108": "Receivable",
+	"2008": "Payable", "1201": "Bank", "2009": "Bank", "1111": "Cash",
+	"4001": "Income Account", "4002": "Income Account", "4003": "Income Account", "4004": "Income Account",
+}
+REQUIRED_EXTRA_NUMBERS = ("1105", "1106", "1107", "1108", "2008", "1201", "2009", "1111", "1120", "2112", "1195", "5029", "5030", "4016", "4006")
+REQUIRED_FIELDS = (
+	"Loan Product-custom_hp_penalty_rate_monthly", "Loan Product-custom_hp_penalty_stop_dpd",
+	"Journal Entry-custom_hp_loan", "Journal Entry-custom_hp_entry_type", "Loan-custom_hp_contract_rate",
+	"Loan Application-custom_hp_deposit_payment_entry", "Loan Application-custom_flexi_doc_fee_net",
+	"Loan Application-custom_flexi_doc_fee_vat", "Loan Application-custom_flexi_gross_contract_value",
+	"Loan Document Template-print_format",
+)
+
+
 @frappe.whitelist()
 def check_setup():
-	"""Report what is missing for the HP model.  Changes nothing."""
+	"""Configuration diagnostics only: an ok result never certifies native postings."""
 	frappe.only_for(("System Manager", "Loan Manager"))
-	problems = []
-	for key, number in ACCOUNT_NUMBERS.items():
-		row = frappe.db.get_value(
-			"Account", {"company": COMPANY, "account_number": number}, ["name", "disabled", "is_group"], as_dict=True
-		)
+	problems = list(RELEASE_BLOCKERS)
+	account_problems = []
+	for number in sorted(set(ACCOUNT_NUMBERS.values()) | set(REQUIRED_EXTRA_NUMBERS)):
+		row = frappe.db.get_value("Account", {"company": COMPANY, "account_number": number},
+			["name", "disabled", "is_group", "account_type"], as_dict=True)
 		if not row:
-			problems.append(f"Missing account {number} - {ACCOUNT_LABELS[key]}")
+			account_problems.append("Missing account " + number)
 		elif row.disabled or row.is_group:
-			problems.append(f"Account {row.name} must be enabled and not a group")
-	if not frappe.db.exists("Supplier", CHD_SUPPLIER):
-		problems.append(f"Missing supplier: {CHD_SUPPLIER}")
-	if not frappe.db.exists("Item", HP_ITEM_CODE):
-		problems.append(f"Missing item: {HP_ITEM_CODE}")
-	elif frappe.db.get_value("Item", HP_ITEM_CODE, "is_stock_item"):
-		problems.append(f"Item {HP_ITEM_CODE} must not maintain stock")
-	for field in ("Loan Product-custom_hp_penalty_rate_monthly", "Journal Entry-custom_hp_loan"):
+			account_problems.append("Account " + number + " must be enabled and not a group")
+		elif number in NATIVE_ACCOUNT_TYPES and row.account_type != NATIVE_ACCOUNT_TYPES[number]:
+			account_problems.append("Account " + number + " must have type " + NATIVE_ACCOUNT_TYPES[number])
+	problems.extend(account_problems)
+	for field in REQUIRED_FIELDS:
 		if not frappe.db.exists("Custom Field", field):
-			problems.append(f"Missing custom field: {field}")
-	company = frappe.db.get_value(
-		"Company", COMPANY, ["days_past_due_threshold", "enable_loan_accounting"], as_dict=True
-	)
-	if not company:
-		problems.append(f"Missing company: {COMPANY}")
-	else:
-		if company.days_past_due_threshold != NPA_DAYS_PAST_DUE:
-			problems.append(f"Company NPA threshold is {company.days_past_due_threshold}, expected {NPA_DAYS_PAST_DUE}")
-		if not company.enable_loan_accounting:
-			problems.append("Loan accounting is not enabled on the Company")
-	for product in frappe.get_all("Loan Product", fields=["name", "penalty_interest_rate", "rate_of_interest"]):
+			problems.append("Missing custom field: " + field)
+	for dt, name in (("Company", COMPANY), ("Supplier", CHD_SUPPLIER), ("Item", HP_ITEM_CODE),
+		("Loan Product", "HP-STD"), ("Workflow", "Loan Application Workflow-1"),
+		("Web Form", "loan-application-new"), ("Report", "HP Customer Statement"),
+		("Workflow Transition Tasks", "Flexi Generate LPO"), ("Workflow Transition Tasks", "Flexi Loan Application Transition Tasks")):
+		if not frappe.db.exists(dt, name):
+			problems.append("Missing " + dt + ": " + name)
+	company_exists = frappe.db.exists("Company", COMPANY)
+	if company_exists:
+		company = frappe.get_doc("Company", COMPANY)
+		if company.default_currency != "FJD" or company.country != "Fiji":
+			problems.append("Company must use FJD and Fiji")
+		if not account_problems:
+			defaults = {"default_bank_account": "1201", "default_cash_account": "1111", "default_receivable_account": "1120", "default_payable_account": "2112", "write_off_account": "5008", "round_off_account": "1195"}
+			for field, number in defaults.items():
+				expected = frappe.db.get_value("Account", {"company": COMPANY, "account_number": number}, "name")
+				if company.get(field) != expected:
+					problems.append("Company " + field + " must use account " + number)
+	if not account_problems and company_exists:
+		from comfort_homes.hp_lending.hp_setup import field_diffs
+		for change in field_diffs():
+			problems.append(change["doctype"] + " " + change["name"] + ": " + change["field"] + " differs from the approved setup")
+	for product in frappe.get_all("Loan Product", filters={"company": COMPANY}, fields=["name", "penalty_interest_rate"]):
 		if product.penalty_interest_rate:
-			problems.append(f"Loan Product {product.name}: native penalty rate must be 0, is {product.penalty_interest_rate}")
-	return {"ok": not problems, "problems": problems}
+			problems.append("Loan Product " + product.name + ": native penalty rate must be 0")
+	return {"ok": not problems, "problems": problems, "native_acceptance_tested": False, "release_blockers": list(RELEASE_BLOCKERS)}
 
 
-@frappe.whitelist()
-def apply_company_settings():
+@frappe.whitelist(methods=["POST"])
+def apply_company_settings(dry_run=1):
 	"""Set the Company NPA threshold to 90 days.  Idempotent."""
 	frappe.only_for("System Manager")
-	frappe.db.set_value("Company", COMPANY, "days_past_due_threshold", NPA_DAYS_PAST_DUE)
-	return {"days_past_due_threshold": NPA_DAYS_PAST_DUE}
+	before = frappe.db.get_value("Company", COMPANY, "days_past_due_threshold")
+	if not int(dry_run):
+		frappe.db.set_value("Company", COMPANY, "days_past_due_threshold", NPA_DAYS_PAST_DUE)
+	return {"dry_run": int(dry_run), "before": before, "days_past_due_threshold": NPA_DAYS_PAST_DUE}

@@ -1,22 +1,44 @@
-"""HP Agreement signing workflow with co-applicant support.
+"""Retained HP Agreement endpoints, guarded even when called directly.
 
-Phase 3 of the co-applicant integration.  Replaces three Server Script
-fixtures with proper Python, sharing common helpers and adding co-applicant
-signature handling.
-
-Replaced Server Scripts:
-    HP AGREEMENT CUSTOMER SIGN   (api: hp_agreement_customer_sign)
-    HP AGREEMENT DIRECTOR SIGN   (api: hp_agreement_director_sign)
-    HP AGREEMENT PREVIEW         (api: hp_agreement_preview)
-
-Registration:
-    hooks.py → override_whitelisted_methods maps the original API method
-    names to these functions, so existing client code keeps working.
+The current Desk asset is print-only; these handlers are not proof that digital
+signing is the operational process. Do not re-enable a signing UI without approval.
 """
 
 import frappe
 from frappe import _
 from frappe.utils import getdate, now_datetime
+
+
+def _check_agreement_access(docname, rowname=None, write=False, company_signing=False):
+    """Authorise before any signature, file or agreement mutation."""
+    from comfort_homes.api import check_application_access
+    check_application_access(docname, write=int(write), agreement_row=rowname,
+                             company_signing=int(company_signing))
+    application = frappe.get_doc("Loan Application", docname)
+    if rowname:
+        row = frappe.get_doc("Loan Customer Agreement", rowname)
+        code = row.get("document_code") or frappe.db.get_value(
+            "Loan Document Template", row.document_template, "document_code")
+        if code != "HP-AGREEMENT":
+            frappe.throw("This endpoint only handles the HP Agreement")
+    if write and application.get("custom_existing_co_applicant"):
+        _check_co_applicant_access(application)
+    if write:
+        from comfort_homes.hp_lending.document_policy import DIGITAL_CONTRACT_SIGNING_ENABLED
+        if not DIGITAL_CONTRACT_SIGNING_ENABLED:
+            frappe.throw("Digital HP contract signing is not enabled; use the wet-signature scan process")
+    return application
+
+
+def _check_co_applicant_access(application):
+    name = application.get("custom_existing_co_applicant")
+    if not name:
+        return None
+    profile = frappe.get_doc("Co-Applicant", name)
+    profile.check_permission("write")
+    if profile.company != application.company:
+        frappe.throw("Co-Applicant and application must belong to the same company")
+    return profile
 
 
 # ---------------------------------------------------------------------------
@@ -101,6 +123,7 @@ def _save_co_applicant_signature(doc):
     co_app_name = doc.get("custom_existing_co_applicant")
     if not co_app_name:
         return
+    _check_co_applicant_access(doc)
 
     co_sig = frappe.form_dict.get("co_hirer_signature")
     co_sig_date = frappe.form_dict.get("co_hirer_signature_date")
@@ -149,6 +172,7 @@ def _attach_to_co_applicant(doc, html):
     co_app_name = doc.get("custom_existing_co_applicant")
     if not co_app_name:
         return None
+    _check_co_applicant_access(doc)
     file_name = "{}-HP-Agreement-Signed.html".format(co_app_name)
     return _attach_html("Co-Applicant", co_app_name, file_name, html)
 
@@ -167,7 +191,7 @@ def _render_agreement(doc):
 # API: Customer Sign
 # ---------------------------------------------------------------------------
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def hp_agreement_customer_sign(**kwargs):
     """Customer (and co-applicant) signs the HP Agreement.
 
@@ -181,6 +205,7 @@ def hp_agreement_customer_sign(**kwargs):
     """
     docname = frappe.form_dict.get("docname")
     rowname = frappe.form_dict.get("rowname")
+    _check_agreement_access(docname, rowname, write=True)
     signature = frappe.form_dict.get("signature")
     signature_file = frappe.form_dict.get("signature_file")
 
@@ -251,7 +276,7 @@ def hp_agreement_customer_sign(**kwargs):
 # API: Director Sign
 # ---------------------------------------------------------------------------
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def hp_agreement_director_sign(**kwargs):
     """Director counter-signs the HP Agreement and produces the final copy.
 
@@ -264,6 +289,7 @@ def hp_agreement_director_sign(**kwargs):
     """
     docname = frappe.form_dict.get("docname")
     rowname = frappe.form_dict.get("rowname")
+    _check_agreement_access(docname, rowname, write=True, company_signing=True)
     director_name = frappe.form_dict.get("director_name") or ""
     director_signature = frappe.form_dict.get("director_signature") or ""
     director_signature_file = frappe.form_dict.get("director_signature_file") or ""
@@ -345,7 +371,7 @@ def hp_agreement_director_sign(**kwargs):
     loan = frappe.get_doc("Loan Application", docname)
     document_row = None
     for d in loan.documents:
-        if d.document_template == "LDT-00001" or d.document_code == "HP-AGREEMENT":
+        if d.document_code == "HP-AGREEMENT":
             document_row = d
             break
 
@@ -355,7 +381,7 @@ def hp_agreement_director_sign(**kwargs):
     document_row.update({
         "document_type": "Hire Purchase Agreement",
         "file": file_url,
-        "document_template": "LDT-00001",
+        "document_template": agreement.document_template,
         "document_code": "HP-AGREEMENT",
         "version": agreement.version or 1,
         "status": "Completed",
@@ -387,7 +413,7 @@ def hp_agreement_director_sign(**kwargs):
 # API: Preview
 # ---------------------------------------------------------------------------
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["GET", "POST"])
 def hp_agreement_preview(**kwargs):
     """Read-only preview of the HP Agreement.  No data is saved.
 
@@ -398,7 +424,8 @@ def hp_agreement_preview(**kwargs):
     if not docname:
         frappe.throw(_("Loan Application is required"))
 
-    doc = _set_print_aliases(frappe.get_doc("Loan Application", docname))
+    application = _check_agreement_access(docname, write=False)
+    doc = _set_print_aliases(application)
     html = _render_agreement(doc)
 
     frappe.response["message"] = {"html": html}

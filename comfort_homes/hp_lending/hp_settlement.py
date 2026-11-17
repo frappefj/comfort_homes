@@ -21,11 +21,13 @@ from frappe.utils import flt, getdate, today
 
 from comfort_homes.hp_lending import hp_math as m
 from comfort_homes.hp_lending import hp_settings as s
-from comfort_homes.hp_lending.hp_interest import released_to_date
 
 
 def _contract(loan_name):
 	loan = frappe.get_doc("Loan", loan_name)
+	loan.check_permission("read")
+	if loan.company != s.COMPANY:
+		frappe.throw("Settlement helper is restricted to Flexi loans")
 	app = frappe.db.get_value(
 		"Loan Application", loan.loan_application,
 		["custom_flexi_term_charges", "custom_flexi_term_months"], as_dict=True,
@@ -55,12 +57,15 @@ def settlement_figures(loan_name, as_of=None):
 	remaining = sum(1 for r in rows if getdate(r.payment_date) > as_of)
 	paid = periods - remaining
 	rebate = m.rule_of_78_unearned(term_charges, periods, paid)
-	deferred_left = m.money(term_charges - m.d(released_to_date(loan_name)))
+	deferred_left = max(m.money(_loan_balance(s.ACC_DEF_INTEREST, loan_name)), m.d(0))
 	rebate = min(rebate, deferred_left)  # never more than is still deferred
+	booked = frappe.db.get_value("Loan Balance Adjustment", {"loan": loan_name, "reference_number": "HP-REBATE-" + loan_name, "docstatus": 1}, "amount")
+	if booked:
+		rebate = m.d(0)  # current native balance already includes this credit
 	return {
 		"loan": loan_name, "as_of": str(as_of), "periods": periods, "periods_paid": paid,
 		"term_charges": float(term_charges), "deferred_interest_left": float(deferred_left),
-		"rebate": float(rebate), "earned_not_released": float(deferred_left - rebate),
+		"rebate": float(rebate), "rebate_already_booked": flt(booked), "earned_not_released": 0 if booked else float(deferred_left - rebate),
 	}
 
 
@@ -81,10 +86,11 @@ def settlement_quote(loan, as_of=None):
 	return figures
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def post_settlement_rebate(loan, as_of=None):
 	"""Book the rebate.  Approved by Accounts Manager; the customer then pays the reduced balance."""
 	frappe.only_for(("Accounts Manager", "System Manager"))
+	frappe.db.sql("SELECT name FROM `tabLoan` WHERE name = %s FOR UPDATE", (loan,))
 	figures = settlement_figures(loan, as_of)
 	key = f"HP-REBATE-{loan}"
 	if frappe.db.exists("Loan Balance Adjustment", {"reference_number": key, "docstatus": 1}):
@@ -121,7 +127,9 @@ def post_settlement_rebate(loan, as_of=None):
 def clear_deferred_on_write_off(doc, method=None):
 	"""Loan Write Off on_submit: clear the loan's deferred interest and deferred penalties to the write-off account."""
 	loan = doc.loan
-	if not frappe.db.get_value("Loan", loan, "loan_application"):
+	if doc.get("is_settlement_write_off"):
+		return  # full-settlement adjustments are not a second full-loan clearance
+	if doc.company != s.COMPANY or not frappe.db.get_value("Loan", loan, "loan_application"):
 		return
 	if s.entry_exists("Write Off Clearance", loan):
 		return

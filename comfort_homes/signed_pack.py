@@ -32,7 +32,7 @@ def _agreement_rows(docname):
 	# The print_format field is a comfort_homes custom field on Loan Document
 	# Template.  It may not exist on a fresh site before fixtures are synced.
 	has_pf = frappe.get_meta("Loan Document Template").has_field("print_format")
-	template_fields = ["document_code", "document_name"]
+	template_fields = ["document_code", "document_name", "requires_signature"]
 	if has_pf:
 		template_fields.append("print_format")
 	for row in rows:
@@ -42,6 +42,7 @@ def _agreement_rows(docname):
 		code = row.document_code or template.get("document_code")
 		if code == "REQ" or (has_pf and not template.get("print_format")):
 			continue
+		row.requires_signature = bool(template.get("requires_signature"))
 		row.title = template.get("document_name") or code
 		row.print_format = template.get("print_format", "") if has_pf else ""
 		if not row.print_format:
@@ -280,13 +281,16 @@ def ensure_assessment_customer_document(doc, method=None):
 	row.status = "Pending"
 
 
-@frappe.whitelist()
-def add_assessment_document_to_existing_applications():
+@frappe.whitelist(methods=["POST"])
+def add_assessment_document_to_existing_applications(dry_run=1):
 	"""Explicit, safe one-time backfill for existing non-cancelled applications.
 
 	It must be deliberately invoked after the reviewed print pack is deployed;
 	it does not run during migration and never replaces existing child rows.
 	"""
+	frappe.only_for("System Manager")
+	dry_run = int(dry_run)
+	would_add = []
 	template = _assessment_template()
 	if not template:
 		frappe.throw(_("The Application Assessment Summary template is not installed."))
@@ -294,6 +298,8 @@ def add_assessment_document_to_existing_applications():
 	added = 0
 	applications = frappe.get_all("Loan Application", filters={"docstatus": ["!=", 2]}, pluck="name")
 	for application_name in applications:
+		if not dry_run:
+			frappe.db.sql("SELECT name FROM `tabLoan Application` WHERE name = %s FOR UPDATE", (application_name,))
 		exists = frappe.db.exists(
 			"Loan Customer Agreement",
 			{
@@ -304,6 +310,9 @@ def add_assessment_document_to_existing_applications():
 			},
 		)
 		if exists:
+			continue
+		would_add.append(application_name)
+		if dry_run:
 			continue
 		last_row = frappe.get_all(
 			"Loan Customer Agreement",
@@ -327,8 +336,9 @@ def add_assessment_document_to_existing_applications():
 			}
 		).db_insert()
 		added += 1
-	frappe.db.commit()
-	return {"added": added}
+	if not dry_run:
+		frappe.db.commit()
+	return {"dry_run": dry_run, "would_add": would_add, "added": added}
 
 
 def _set_print_aliases(application):
@@ -338,7 +348,7 @@ def _set_print_aliases(application):
 	return application
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def normalize_customer_print_formats():
 	"""Remove the accidental global CSS override from the physical print pack.
 
@@ -347,6 +357,7 @@ def normalize_customer_print_formats():
 	``!important`` and even removed table borders.  It must not be applied to
 	any customer document.
 	"""
+	frappe.only_for("System Manager")
 	updated = []
 	for name in CUSTOMER_PRINT_FORMATS:
 		if not frappe.db.exists("Print Format", name):
@@ -414,23 +425,23 @@ def _join(parts):
 
 
 def _attach(application, file_name, content):
-	"""Attach the file to the application, replacing any earlier copy of the same name."""
-	for old in frappe.get_all(
-		"File",
-		filters={"attached_to_doctype": "Loan Application", "attached_to_name": application.name, "file_name": file_name},
-		pluck="name",
-	):
-		frappe.delete_doc("File", old, ignore_permissions=True)
-	return frappe.get_doc(
-		{
-			"doctype": "File",
-			"file_name": file_name,
-			"content": content,
-			"is_private": 1,
-			"attached_to_doctype": "Loan Application",
-			"attached_to_name": application.name,
-		}
-	).insert(ignore_permissions=True)
+	"""Keep immutable, content-versioned evidence; never delete an earlier pack."""
+	application.check_permission("write")
+	frappe.db.sql("SELECT name FROM `tabLoan Application` WHERE name = %s FOR UPDATE", (application.name,))
+	blob = content.encode() if isinstance(content, str) else content
+	stem, dot, extension = file_name.rpartition(".")
+	versioned = (stem if dot else file_name) + "-" + hashlib.sha256(blob).hexdigest()[:16] + (dot + extension if dot else "")
+	existing = frappe.db.exists("File", {"attached_to_doctype": "Loan Application", "attached_to_name": application.name, "file_name": versioned})
+	if existing:
+		file_doc = frappe.get_doc("File", existing)
+		file_doc.check_permission("read")
+		existing_content = file_doc.get_content()
+		existing_bytes = existing_content.encode() if isinstance(existing_content, str) else existing_content
+		if hashlib.sha256(existing_bytes).digest() != hashlib.sha256(blob).digest():
+			frappe.throw("An existing pack has conflicting content; keep it for review")
+		return file_doc
+	return frappe.get_doc({"doctype": "File", "file_name": versioned, "content": content,
+		"is_private": 1, "attached_to_doctype": "Loan Application", "attached_to_name": application.name}).insert(ignore_permissions=True)
 
 
 def _result(application, file_name, parts):
@@ -442,16 +453,16 @@ def _result(application, file_name, parts):
 	return {"mode": "pdf", "file_url": file_doc.file_url, "documents": [p["title"] for p in parts], "pages": pages}
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def make_signed_pack(loan_application):
 	"""Join every completed agreement's signed copy, in document order, and attach it."""
 	application = _set_print_aliases(frappe.get_doc("Loan Application", loan_application))
-	frappe.has_permission("Loan Application", "read", doc=application, throw=True)
+	frappe.has_permission("Loan Application", "write", doc=application, throw=True)
 	_check_collection_complete(application)
 
-	rows = _agreement_rows(application.name)
+	rows = [row for row in _agreement_rows(application.name) if row.requires_signature]
 	if not rows:
-		frappe.throw(_("This Loan Application has no customer documents."))
+		frappe.throw(_("This Loan Application has no signing documents."))
 	not_ready = [row.title for row in rows if row.status != "Completed" or not row.final_signed_file]
 	if not_ready:
 		frappe.throw(
@@ -475,11 +486,11 @@ def make_signed_pack(loan_application):
 	return _result(application, "Signed Contract Pack - {0}.pdf".format(application.name), parts)
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def make_document_pack(loan_application):
 	"""Join the exact configured Print Formats for this application into one PDF."""
 	application = frappe.get_doc("Loan Application", loan_application)
-	frappe.has_permission("Loan Application", "read", doc=application, throw=True)
+	frappe.has_permission("Loan Application", "write", doc=application, throw=True)
 
 	rows = _agreement_rows(application.name)
 	if not rows:
@@ -501,7 +512,12 @@ def make_document_pack(loan_application):
 	return _result(application, "Customer Documents - {0}.pdf".format(application.name), parts)
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def make_blank_forms(loan_application):
 	"""Compatibility alias retained for existing users of the old button."""
 	return make_document_pack(loan_application)
+
+
+def _check_collection_complete(application):
+	if application.get("custom_document_collection_complete") != "Yes":
+		frappe.throw("Document collection must be complete before building a signed pack")

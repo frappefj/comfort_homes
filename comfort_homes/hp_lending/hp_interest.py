@@ -36,11 +36,16 @@ def release_deferred_interest(as_of=None):
 	released_loans = []
 	loans = frappe.get_all(
 		"Loan",
-		filters={"company": s.COMPANY, "status": ["in", ["Disbursed", "Partially Disbursed"]], "docstatus": 1},
+		filters={"company": s.COMPANY, "status": ["in", ["Disbursed", "Partially Disbursed"]], "docstatus": 1, "is_imported": 0, "applicant_type": "Customer", "loan_application": ["!=", ""], "custom_hp_contract_rate": [">", 0]},
 		fields=["name", "applicant", "loan_application", "cost_center", "days_past_due", "posting_date"],
 		limit_page_length=0,
 	)
 	for loan in loans:
+		frappe.db.sql("SELECT name FROM `tabLoan` WHERE name = %s FOR UPDATE", (loan.name,))
+		loan.days_past_due = frappe.db.get_value("Loan", loan.name, "days_past_due")
+		# A booked settlement already disposed of all deferred interest.
+		if frappe.db.exists("Loan Balance Adjustment", {"loan": loan.name, "reference_number": "HP-REBATE-" + loan.name, "docstatus": 1}):
+			continue
 		if not loan.loan_application or (loan.days_past_due or 0) > 0:
 			continue  # overdue: interest stays deferred until the loan is current
 		tag = f"HP-INT-{loan.name}-{month_end}"

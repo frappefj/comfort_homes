@@ -61,7 +61,7 @@ def overdue_base(loan, on_date, grace_days):
 		"""
 		SELECT COALESCE(SUM(outstanding_amount), 0) FROM `tabLoan Demand`
 		WHERE loan = %s AND docstatus = 1 AND demand_type = 'EMI'
-		  AND outstanding_amount > 0 AND demand_date <= %s
+		  AND outstanding_amount > 0 AND demand_date < %s
 		""",
 		(loan, add_days(on_date, -int(grace_days))),
 	)
@@ -74,11 +74,13 @@ def assess_penalties(on_date=None):
 	charged = []
 	loans = frappe.get_all(
 		"Loan",
-		filters={"company": s.COMPANY, "status": ["in", ["Disbursed", "Partially Disbursed"]], "docstatus": 1},
+		filters={"company": s.COMPANY, "status": ["in", ["Disbursed", "Partially Disbursed"]], "docstatus": 1, "is_imported": 0, "applicant_type": "Customer", "loan_application": ["!=", ""], "custom_hp_contract_rate": [">", 0]},
 		fields=["name", "applicant", "loan_product", "repayment_frequency", "days_past_due", "cost_center"],
 		limit_page_length=0,
 	)
 	for loan in loans:
+		frappe.db.sql("SELECT name FROM `tabLoan` WHERE name = %s FOR UPDATE", (loan.name,))
+		loan.days_past_due = frappe.db.get_value("Loan", loan.name, "days_past_due")
 		rate, stop_dpd, grace = _product_settings(loan.loan_product)
 		if not rate or (loan.days_past_due or 0) >= stop_dpd:
 			continue
@@ -116,20 +118,21 @@ def realise_closed_loan_penalties():
 	done = []
 	rows = frappe.db.sql(
 		"""
-		SELECT lba.loan,
+		SELECT lba.loan, l.cost_center,
 		       SUM(CASE WHEN lba.adjustment_type = 'Debit Adjustment' AND lba.reference_number LIKE %s THEN lba.amount
 		                WHEN lba.adjustment_type = 'Credit Adjustment' AND lba.adjustment_account = %s THEN -lba.amount
 		                ELSE 0 END) AS total
 		FROM `tabLoan Balance Adjustment` lba
 		JOIN `tabLoan` l ON l.name = lba.loan
-		WHERE lba.docstatus = 1 AND l.status = 'Closed'
-		GROUP BY lba.loan
+		WHERE lba.docstatus = 1 AND l.status = 'Closed' AND l.company = %s
+		GROUP BY lba.loan, l.cost_center
 		HAVING total > 0
 		""",
-		(f"{KEY}-%", s.ACC_DEF_PENALTY),
+		(f"{KEY}-%", s.ACC_DEF_PENALTY, s.COMPANY),
 		as_dict=True,
 	)
 	for row in rows:
+		frappe.db.sql("SELECT name FROM `tabLoan` WHERE name = %s FOR UPDATE", (row.loan,))
 		if s.entry_exists("Penalty Realisation", row.loan):
 			continue
 		je = frappe.get_doc({
@@ -142,7 +145,7 @@ def realise_closed_loan_penalties():
 			"user_remark": f"Late payment charges recognised on closure of {row.loan}",
 			"accounts": [
 				{"account": s.ACC_DEF_PENALTY, "debit_in_account_currency": float(m.money(row.total))},
-				{"account": s.ACC_PENALTY_INCOME, "credit_in_account_currency": float(m.money(row.total))},
+				{"account": s.ACC_PENALTY_INCOME, "credit_in_account_currency": float(m.money(row.total)), "cost_center": row.cost_center},
 			],
 		})
 		je.insert(ignore_permissions=True)

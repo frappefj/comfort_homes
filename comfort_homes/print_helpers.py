@@ -33,7 +33,8 @@ def get_co_applicants(loan_application):
 		pluck="name",
 		order_by="creation asc",
 	)
-	selected = frappe.db.get_value("Loan Application", application_name, "custom_existing_co_applicant")
+	selected = (loan_application.get("custom_existing_co_applicant") if hasattr(loan_application, "get")
+		else frappe.db.get_value("Loan Application", application_name, "custom_existing_co_applicant"))
 	if selected and frappe.db.exists(CO_APPLICANT, selected) and selected not in co_applicant_names:
 		co_applicant_names.append(selected)
 

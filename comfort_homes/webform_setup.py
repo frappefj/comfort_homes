@@ -358,7 +358,7 @@ CALCULATION_SCRIPT = r'''
 		const parsed = Number(String(value ?? "").replace(/[^0-9.-]/g, ""));
 		return Number.isFinite(parsed) ? parsed : 0;
 	};
-	const money = (value) => Math.round((number(value) + Number.EPSILON) * 100) / 100;
+	const money = (value) => window.comfort_hp_math.round(number(value));
 
 	function tableFor(target) {
 		return [purchaseTable, ...incomeTables].find((fieldname) =>
@@ -421,18 +421,18 @@ CALCULATION_SCRIPT = r'''
 		const expenseRows = form.get_value("custom_flexi_living_expenses") || [];
 		const obligationRows = form.get_value("custom_flexi_finance_obligations") || [];
 		const income = incomeRows.reduce((sum, row) => {
-			const monthly = money(number(row.amount) * monthlyFactor(row.frequency));
-			setChildValue(row, "monthly_amount", monthly);
+			const monthly = number(row.amount) * monthlyFactor(row.frequency);
+			setChildValue(row, "monthly_amount", money(monthly));
 			return sum + (row.income_type === "Salary Deductions" ? Math.abs(monthly) : monthly);
 		}, 0);
 		const expenses = expenseRows.reduce((sum, row) => {
-			const monthly = money(number(row.expense_amount) * number(row.frequency_per_month || 1));
-			setChildValue(row, "monthly_amount", monthly);
+			const monthly = number(row.expense_amount) * number(row.frequency_per_month || 1);
+			setChildValue(row, "monthly_amount", money(monthly));
 			return sum + monthly;
 		}, 0);
 		const obligations = obligationRows.reduce((sum, row) => {
-			const monthly = money(number(row.amount) * monthlyFactor(row.frequency));
-			setChildValue(row, "monthly_amount", monthly);
+			const monthly = number(row.amount) * monthlyFactor(row.frequency);
+			setChildValue(row, "monthly_amount", money(monthly));
 			return sum + monthly;
 		}, 0);
 		const set = (fieldname, value) => form.set_value(fieldname, money(value));
@@ -447,7 +447,7 @@ CALCULATION_SCRIPT = r'''
 		const preDsr = income ? money(obligations / income * 100) : 0;
 		set("custom_flexi_pre_dsr", preDsr);
 		set("custom_flexi_dsr_margin", Math.max(maxDsr - preDsr, 0));
-		set("custom_flexi_weekly_eligibility", Math.max((income * maxDsr / 100 - obligations) * 12 / 52, 0));
+		set("custom_flexi_weekly_eligibility", Math.max((income * maxDsr / 100 - obligations) / window.comfort_hp_math.profile(window.comfort_hp_math.readWeb(form)).weeks, 0));
 		renderDtiMatrix(income, obligations);
 		["custom_flexi_income_entries", "custom_flexi_living_expenses", "custom_flexi_finance_obligations"].forEach((fieldname) => {
 			form.fields_dict[fieldname]?.grid?.refresh?.();
@@ -586,7 +586,7 @@ CALCULATION_SCRIPT = r'''
 
 def _leaf_cost_center_options():
 	"""Return only usable branch/location Cost Centers for public applicants."""
-	return frappe.get_all("Cost Center", filters={"is_group": 0}, pluck="name", order_by="name asc")
+	return frappe.get_all("Cost Center", filters={"is_group": 0, "company": "Comfort Home Furnishing PTE Limited"}, pluck="name", order_by="name asc")
 
 
 def _configure_branch_location_field(web_form):
@@ -718,17 +718,14 @@ def setup_web_form_and_print_formats():
 	"""
 	inject_loan_application_duplicate_check()
 	from comfort_homes.signed_pack import (
-		add_assessment_document_to_existing_applications,
 		normalize_customer_print_formats,
 		sync_reviewed_print_formats,
 	)
 
 	sync_reviewed_print_formats()
 	normalize_customer_print_formats()
-	# Existing applications pre-date the seventh, non-signing Assessment row.
-	# The backfill is idempotent: it creates only that missing row and never
-	# changes any existing document or signing status.
-	add_assessment_document_to_existing_applications()
+	# Existing applications are backfilled only by an explicit approved
+	# add_assessment_document_to_existing_applications(dry_run=0) call.
 
 
 def _repair_legacy_number_parsing(script):

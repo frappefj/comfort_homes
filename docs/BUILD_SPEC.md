@@ -1,96 +1,293 @@
-# Flexi HP on Frappe Lending v16: build specification (draft for review)
+# Flexi gross-HP correction candidate
 
-Status: code complete on branch `rebuild/gross-hp` (v0.0.6), not yet run on a site. The full configuration
-and implementation guide is the shared document "Flexi HP Configuration and Implementation Guide".
-Section 6 lists what the prototype must confirm before this is trusted.
+**Version:** 0.0.7.dev4. **Status:** NOT READY FOR DEPLOYMENT / DISBURSEMENT.
+Prepared against `rebuild/gross-hp` at `7884c54a5980c3354ffa0f153120452a6f2cb4fa`.
+Native reference versions: Frappe 16.56.0, ERPNext 16.55.0, Lending 16.8.1.
 
-## 1. Model (decided)
+All implementation changes target **devcom.syd.frappe.cloud**, only after a
+separate site-batch approval. **comfort.syd.frappe.cloud is strictly read-only**.
+No native application source was edited. No site migration, configuration apply,
+financial posting or user-role assignment was performed for this candidate.
+The shared implementation plan is the business/configuration approval register;
+this file describes the repository implementation and its limits.
 
-Gross Hire Purchase. The whole contract is booked at disbursement. No IFRS 9 / EIR.
-Fees: only the documentation fee ($25 VAT-inclusive) carries VAT, at 12.5%, booked
-at disbursement. Admin fee (2.5% of goods less deposit), deposit and interest are VAT-exempt.
+## 1. Approved native NPA boundary
 
-Worked example (goods 849, deposit 170, 22% flat, 12 months):
+The user approved native Loan Product NPA threshold **89** to flag stored DPD
+**90**, because Lending 16.8.1 uses `days_past_due > threshold`. The custom penalty
+stop remains **90**; Company days-past-due setting remains **90**. The constants
+are deliberately separate so fixing native classification does not change late
+charges. No custom NPA classifier was added.
 
-| Item | Amount |
-|---|---|
-| Value after deposit | 679.00 |
-| Admin fee 2.5% | 16.98 |
-| Documentation fee (22.22 net + 2.78 VAT) | 25.00 |
-| Net financed | 720.98 |
-| Term charges 22% x 1 yr | 158.61 |
-| **Loan amount (balance after deposit)** | **879.59** |
-| Gross contract value (incl. deposit) | 1,049.59 |
-| Instalments | 73.30 x 11 + 73.29 / 33.83 x 25 + 33.84 / 16.92 x 51 + 16.67 |
+The specific NPA decision release gate is now resolved in code. This is not
+installation or disbursement approval. The native counter's as-of/date offset and
+actual flags must still be demonstrated on devcom. Neither site's product or
+Company settings were changed by this repository update.
 
-## 2. How each step is done (native first)
+## 2. Locked business model
 
-| Step | Method | Custom? |
-|---|---|---|
-| Application, DSR, fees, VAT split | `loan_application_workflow.calculate_financials` (existing, extended) | extended |
-| Deposit | Payment Entry (Receive) linked on the application; gate in `hp_lifecycle.validate_deposit_payment` | gate only |
-| Loan | Created by Lending's own `create_loan`; `loan_mapping` sets amount = total repayment, rate 0%, frequency, term | mapping |
-| Schedule | Native. Product schedule type "Monthly as per repayment start date" (supports weekly/fortnightly). Equal instalments, last absorbs rounding | none |
-| Disbursement | Native: Dr HP Receivable / Cr Clearing 879.59 | none |
-| Gross booking | ONE added journal entry: Dr Deposits 170.00, Dr Clearing 30.59 / Cr Deferred Interest 158.61, Admin 16.98, Doc fee 22.22, VAT 2.78 | `hp_lifecycle` |
-| LPO / CHD invoice | Existing PO workflow; non-stock item HP Product to Clearing | existing |
-| Repayments | Native Loan Repayment | none |
-| Interest earned | Monthly job, straight-line, current loans only, catch-up on cure | `hp_interest` |
-| Late charges | Daily job: rate/period x overdue instalments past 7-day grace, posted as Loan Balance Adjustment to Deferred Penalty | `hp_penalties` |
-| Penalty income | Recognised when loan closes | `hp_penalties` |
-| Early settlement | Rule of 78 rebate (`hp_math.rule_of_78_unearned`); posting not built yet | pending |
+Flexi and CHD are separate legal entities. Flexi retains the customer deposit,
+issues the CHD LPO at goods cash price, receives CHD's non-stock invoice without
+claiming input VAT, and settles CHD monthly. Gross HP interest is inside the
+post-deposit Loan balance; servicing interest is zero. No IFRS 9 or EIR.
 
-Ledger after disbursement: Receivable 879.59, Clearing Cr 849.00 (owed to CHD),
-Deferred Interest Cr 158.61, Admin 16.98, Doc fee 22.22, VAT 2.78, Deposits 0.
+Only the documentation fee is VAT-inclusive: 25.00 = 22.22 income + 2.78 VAT.
+Admin is 2.5% of value after deposit and VAT-exempt. The existing origination
+rounding order is preserved, following the user's explicit decision.
 
-## 3. Settings (fields, not code)
+## 3. Two explicit test cases, not a hidden one-cent correction
 
-On Loan Product: HP Penalty Rate (% per month, default 2.5), Stop Penalties at DPD
-(default 90), native Grace Period Days (7), native Penalty Interest Rate **0**.
-Per-period rate = monthly x 12 / periods per year (monthly 2.5%, fortnightly 1.1538%, weekly 0.5769%).
-Company: Days Past Due Threshold 90 (NPA). Run `hp_settings.check_setup` after importing the Chart of Accounts.
+| Value | Original fixed-input reference | Preserved origination output |
+|---|---:|---:|
+| Goods / deposit | 849.00 / 170.00 | 849.00 / 170.00 |
+| Net financed | 720.98 | 720.98 |
+| Term charges | 158.61 | 158.62 |
+| Post-deposit repayment balance | 879.59 | 879.60 |
+| Gross contract | 1,049.59 | 1,049.60 |
+| Monthly instalments | 73.30 x 11, then 73.29 | 73.30 x 12 |
+| Fortnightly | 33.83 x 25, then 33.84 | 33.83 x 25, then 33.85 |
+| Weekly | 16.92 x 51, then 16.67 | 16.92 x 51, then 16.68 |
+| Receivable after 73.30 payment | 806.29 | 806.30 |
+| Deferred after 13.22 release | 145.39 | 145.40 |
+| Rule-of-78: six of twelve elapsed | 42.70 | 42.71 |
 
-## 4. Removed or disabled
+The original helper tests remain unchanged. A complete origination case and
+browser/Python parity tests cover the chosen output. Neither column is evidence
+of a posted site transaction. The added reclass balances the origination case
+with deposit Dr 170.00, clearing Dr 30.60, and credits 158.62 / 16.98 / 22.22 / 2.78;
+native clearing Cr 879.60 consequently leaves Cr 849.00. No rounding JE is added.
 
-Removed: `penalty.py` (used an invalid adjustment type), `interest_override.py`
-(flat daily rate, not needed at 0% loan interest), Sales Invoice deposit gate.
-Disabled in fixtures: server scripts "Calculations" and "Flexi Flat Repayment Schedule Sync".
-Removed: `api.create_deposit_sales_invoice` and its client script (replaced by `create_deposit_payment_entry`).
+## 4. Origination preservation
 
-## 5. Permissions: proposed minimal matrix (DRAFT)
+- Keep the primary workflow's 15 states / 20 transitions and 130 public form
+  fields. Working origination is the reference; UAT servicing/accounts are not.
+- Application `loan_amount` remains **net financed** for the existing 3,000
+  approval threshold. `loan_mapping` maps gross post-deposit repayments to Loan.
+- Preserve exact monthly-equivalent decision inputs, Salary Deductions handling,
+  and UAT's assessment-frequency divisor (52/12 or four weeks). Do not use rounded
+  display instalments to decide eligibility.
+- Finalise the flat summary after native validation on **save and submit**.
+  Existing-customer prefill requires read permission; public callers cannot supply
+  an existing Customer link. Customer creation is prepared before native validation.
+- Browser previews share one pure engine; binary rounding matches preserved Python
+  `round`, including half-period counts. This is needed because Frappe's native
+  epsilon-based browser rounding is not equivalent at all boundaries. No extra
+  event-listener bridge is registered by the shared helper.
+- Co-applicants receive their own profile totals, not a second facility. Necessary
+  Desk identity/geography/CIRA/employment behaviour is packaged. The co-applicant
+  post-review workflow remains a separately held decision; its old loan/PO task
+  has deliberately not been copied.
 
-Principle: least privilege, no delete anywhere in accounting, maker and checker are different roles.
+## 5. Native integration safeguards
 
-| Role | Can do |
-|---|---|
-| Loan Origination (LOS) | Create/edit Loan Application and Co-Applicant until submission. Read customers. No approval. |
-| Loan Assessor | Read/write assessment sections; recommend. |
-| Finance Manager | Approve applications under $3,000; approve LPO. Not disbursement. |
-| Director | Approve $3,000 and over; sign. |
-| Disbursement Officer | Create and submit Loan and Loan Disbursement. Cannot approve or raise supplier invoices. |
-| Accounts Officer | Deposit and repayment Payment Entries, Loan Repayment, bank reconciliation, supplier payments. Cannot disburse. |
-| Accounts Manager | Journal Entry, period close, write-offs, waivers. |
-| Auditor | Read, export, print everywhere. No write. |
-| System Manager | Administration only. |
+Lending's native Loan defaulting treats zero interest as missing. The small
+`GrossHPLoanMixin` calls the native defaulting method, then restores zero only for
+marked, non-imported Flexi HP Loans before later validation/scheduling. It refuses
+to silently rewrite an already-submitted non-zero-rate loan. The product keeps
+its contractual default rate; each Loan stores the selected application rate.
 
-Remove: Guest and All write/delete (keep Guest create on the public web form only); Employee on lending forms.
-Cancel only, never delete, on Loan Disbursement, Loan Write Off and Payment Entry.
+Native disbursement defaulting unconditionally replaces its account when a Mode
+of Payment is set. The app's draft validation restores goods clearing and clears
+the collection preference from that disbursement. Before submission it checks
+matching approved application/customer, whole amount, zero servicing rate,
+clearing account, submitted bound deposit, and absence of another disbursement.
+Native security withholding, additional native disbursement fees and a customer
+bank payout are rejected for this gross goods-booking path.
 
-## 6. Prototype checklist (must pass before building further)
+Deposits must be submitted Receive Payment Entries for the same customer,
+company, FJD and account 2010, equal in paid/received amounts, not invoice-allocated
+and not shared by applications. Receipt/loan locks serialize competing checks.
+There is no deposit Sales Invoice.
 
-1. A 0% loan at 879.59 gives 73.30 x 11 + 73.29 (monthly), 33.83 x 25 + 33.84 (fortnightly), 16.92 x 51 + 16.67 (weekly).
-2. Loan product schedule type options accept weekly and fortnightly.
-3. Deposit Payment Entry posts to Customer HP Deposits, and the reclass journal clears it against the same customer. Check the advance-payment company setting and the account type 2010 needs.
-4. Does a Loan Balance Adjustment (Debit) added to the loan get collected by Loan Repayment, increase the amount due, and close correctly? If not, use native daily penalty accrual with a per-loan rate instead.
-5. Lending accepts the Deferred Penalty liability as the adjustment account.
-6. `Loan.days_past_due` and NPA flag at 90.
-7. Loan Balance report equals the HP Receivable ledger.
-8. End-to-end ledger test against the example: Receivable 806.29 after one instalment; Deferred Interest 145.39 after one release.
+Native schedules remain authoritative; select **No Rounding** with effective
+currency precision two. A submitted Loan must not suppress mapping tenure onto
+its new disbursement. No repayment schedule rewrite is enabled.
 
-## 7. Open items
+## 6. API, collection and document safeguards
 
-Built since this draft: Rule of 78 settlement and write-off clearance (`hp_settlement`), Chart of Accounts
-import file (`setup_data/`), permissions (`hp_permissions`), master data setup (`hp_setup`), the deposit
-Payment Entry replacing the Sales Invoice.
+- Mutating Python endpoints, including retained directly callable agreement-signing
+  handlers, are POST-only with document/role checks. Completed agreement rows are
+  protected from overwrite; linked co-applicant writes are separately authorised.
+  HP-only handlers validate the agreement code and use the actual template link,
+  not a site-specific LDT number. No digital-signing UI is enabled. Retained
+  safe-exec document APIs call a common native-dispatch access gate, including
+  agreement ownership, draft-only mutation and company-signing role checks.
+- Bank import persists a deterministic bank/file/sheet/row key and uses native
+  Loan Repayment references. Reconciliation/bank/loan locks, exact submitted
+  reference matching and per-row savepoints protect retries and failures. This
+  identifies **exact file re-imports**, not all re-exported statement duplicates.
+- Imported money uses the selected company bank; a customer's preferred collection
+  mode is not evidence of the actual bank used. No UAT auto-advance shortcut is copied.
+- Prior PDF pack attachments are not deleted. Pack files are content-versioned,
+  reused only after verifying identical content, and require write access.
+- Existing-application assessment backfill is System Manager, POST-only, dry-run
+  by default and is not called automatically during migration. Read-only users
+  cannot create persistent pack attachments. Non-signing assessment is excluded
+  from signing readiness. Existing print-only UI is not reactivated as e-signing.
+- Eight template records now cover six legal forms, withdrawn REQ and the internal
+  assessment; canonical format names are mapped by code. Existing Form 1/2
+  Director-signature differences remain held for the execution-process decision.
 
-Still open: decisions on early-settlement fees and repossession entries; confirmation of tests 1 to 8 on a site.
+## 7. Interest, late charges and settlement
+
+Monthly straight-line release, arrears pause/catch-up and periodic non-compounding
+late charges remain app extensions. Jobs are scoped to linked, non-imported HP
+customer loans. Grace is strictly beyond seven days; stored DPD 90 stops penalties.
+Locks serialize tag checks. Historical missed-date charging is NOT automatically
+backfilled from today's outstanding amounts.
+
+A booked rebate is not deducted again in a later quote, and the monthly interest
+job does not release rebated interest while settlement payment is pending. The
+Rule-of-78 date rule itself was not changed. Deferred balances come from tagged
+journals/adjustments. Native write-off remains native; a settlement write-off does
+not trigger a second full-loan deferred clearance. Waiver/closure income remains
+the current net-of-waiver design pending Finance's decision.
+
+## 8. Proposed configuration, not applied site changes
+
+- Full Company/Product field diffs are included in master previews. Existing HP-STD,
+  supplier/item company mappings are reconciled rather than silently skipped.
+  BSP payment bank is explicitly number 1201, not the first Bank account found.
+- A native **Flexi HP Demand Offset Order** avoids modifying a shared standard
+  order. Company changes and group/mapping validity still need saved-site proof.
+- `check_setup` checks required accounts/types, fields, masters, defaults and exact
+  desired setup; its result explicitly does not certify native acceptance.
+- Assessment permlevel 1 is retained in the proposed role matrix. Preview shows
+  native permissions if no Custom DocPerm applies. There is no delete/share grant;
+  export is limited to designated reporting/finance roles. No permission apply or
+  user assignment was run. Effective roles still require independent review/tests.
+
+### Proposed chart: 111 accounts (requires explicit account-batch approval)
+
+The original importer file had 107 rows and lacked four mandatory native account
+types. The candidate adds:
+
+| Number | Name | Type | Parent |
+|---|---|---|---|
+| 1196 | Stock - Native Compatibility | Stock | Current Assets |
+| 5003 | Cost of Goods Sold - Native Compatibility | Cost of Goods Sold | Expenses |
+| 5004 | Depreciation Expense | Depreciation | Expenses |
+| 5005 | Stock Adjustment - Native Compatibility | Stock Adjustment | Expenses |
+
+It restores 2008 Payable, 2009 Bank and 1610 Receivable. HP Product remains
+non-stock; compatibility accounts do not create stock transactions. Isolated
+ERPNext 16.55.0 importer validation/tree helpers accept the 111-row, five-root
+file. Native Account creation/posting was not tested. No chart was imported.
+The importer replaces accounts and related mappings/templates; replacing devcom's
+96 existing accounts requires backup and explicit deletion/replacement approval.
+Do not overlay the existing 2310 TDS account with VAT by account number alone.
+
+## 9. Required remaining proof and decisions
+
+Passing repository tests is not finalising the app. The NPA setting decision is
+resolved; the co-applicant/document-process decisions are implemented in the dev4 candidate below, but not site-accepted. Confirm settlement
+fees/month counting, waiver presentation, rate choices, repossession and any
+sanctioned-limit basis affected by gross Loan amounts. Twice-monthly and legacy
+portfolio migration are not silently implemented.
+
+On separately approved devcom batches: clean install/migrate with full fixture
+checks; Company/COA and master dry runs; independent permission review and real
+user tests; all eight prototype checks plus arrears/cure/settlement/write-off/
+waiver/CHD invoice scenarios; public application, co-applicant and every legal
+print/signed pack; scheduler and month-end reconciliations. Verify the LPO approval
+handoff actually submits the intended native PO, and CHD invoices have no VAT;
+these native document/approval paths are not certified by the current unit tests.
+Outbound test notifications must be reviewed before any workflow batch can send
+mail. Migrate is a Frappe Cloud dashboard action, never a REST action.
+
+The test suite covers pure logic, mocked document/database operations, selected
+pinned native snippets and Node-executed previews. No real ledger, actual native
+submit/cancel cycle, PDF render, role login, scheduler run or migration was observed.
+Never deploy this candidate merely because the repository tests are green.
+
+
+## 10. Confirmed individual consent, linked profiles and paper execution (dev4)
+
+The user confirmed this process and requested finishing this repository action
+and stopping. No installation, migration, configuration, notification or financial
+transaction is authorised by this code delivery. The existing implementation plan
+remains the single configuration/approval register; no extra settings manual is needed.
+
+### Native first, narrow extensions
+
+- **Co-applicant:** native, non-submittable `Co-Applicant Profile Review` workflow:
+  Draft → Initiated → Under Review → Pending Approval → Approved, with rejection/
+  resubmission and Loan Manager reopening. It has no loan-amount conditions, financial
+  transition tasks, Loan, disbursement or PO creation. Both legacy co-applicant PO
+  scripts are disabled. The primary workflow record is unchanged. Profile changes
+  to fingerprinted identity, employment, income/expense/obligation inputs or consent
+  require renewed review before facility approval. KYC completion is required for
+  profile assessment/approval. No permissions have been applied.
+- **Individual CIRA:** retain the existing client acknowledgement/signature inputs.
+  On save, capture server time and consent/name/wording fingerprint. Require this
+  consent before KYC initiation (and public form submission), for each linked
+  individual, not one joint signature. Historical unknown capture times are not
+  fabricated: obtain fresh consent. PNG data is restricted to inline captures;
+  remote signature URLs are rejected. This is capture evidence, not independent
+  identity verification.
+- **CIRA PDF:** explicit Desk action **Generate Individual CIRA PDF** for a saved
+  application/profile, using the native renderer and a private content-versioned
+  File. It shows recorded capture time, not application date. Original files remain.
+  The legacy auto-attach script is disabled. PDF creation is explicit, not automatic
+  on every save; native PDF-engine failure must be reported, not disguised as PDF.
+- **After KYC:** Desk **Generate Assessment PDF** renders and attaches **Application
+  Print WIP**. If native PDF rendering is unavailable, staff may print the native
+  format to PDF, then **Record Printed Assessment PDF**, explicitly attesting it is
+  current and post-KYC. Private attachment ownership, parsed PDF, SHA-256 content
+  and input fingerprint are checked. Changed source inputs or file content block
+  subsequent approval/compliance until the current assessment is recorded again.
+- **Paper contracts:** keep existing print/pack actions. During **Contract Signing**,
+  **Record Wet-signed Scan** uploads private PDF evidence and declared customer/
+  co-hirer and manager dates. Staff attest that every required individual signature
+  is present and customers signed first. Preserve each form's existing manager-
+  signature requirements; do not add blanket boxes to statutory forms.
+- **Manager review:** Finance Manager/Director **Verify Uploaded Contract Pack**
+  checks all six legal documents. This records review, not an electronic signature.
+  Dates are date-only: same-day order depends on the human attestation, not invented
+  timestamps. Superseding completed evidence requires manager role, explicit flag
+  and reason; earlier files are retained. Application and direct-child save gates
+  prevent ordinary API/form writes from inventing verification metadata.
+- **Compliance/disbursement:** require current individual consent, approved linked
+  profiles, current assessment, and verified six-document evidence. Recheck at
+  disbursement, including file content and contract/template fingerprints.
+- **Digital legal contracts:** disabled in retained Python and safe-exec mutation
+  endpoints, not merely hidden in the UI. Await lawyer advice and separate approval.
+  Digital individual CIRA capture remains enabled. No Fiji admissibility opinion is made.
+
+The five new POST-only evidence APIs are in `comfort_homes.document_controls`:
+`generate_cira_pdf`, `generate_assessment_pdf`, `record_assessment_pdf`,
+`record_signed_scan`, `verify_contract_pack`. They reuse native Workflow,
+Print Format, File, Version and FileUploader rather than introducing another
+custom DocType. Document controls run after origination finalisation on save/submit.
+
+### Local verification and limits
+
+The complete suite passes **173 tests + 28 subtests**, no skips. New coverage includes
+consent timestamps/reuse/history, individual names, profile/KYC review, protected
+proof metadata, private attachment ownership, real pypdf parsing of synthetic
+valid/corrupt/empty/encrypted/201-page files, scan dates/order, stale evidence,
+separate upload/manager verification, retained digital-signing denial, lifecycle
+source wiring and Node-executed Desk controls/private-uploader configuration.
+PDF rendering itself is mocked; parsing is real. Native reference reads include
+Frappe v16.56.0 Workflow validation and FileUploader properties.
+
+One inherited profile rejection condition still referenced loan amount; the new
+regression exposed it and the copied profile conditions were removed, while the
+primary workflow remains unchanged. The final-control hook is deliberately after
+flat calculation to avoid fingerprinting native overwritten totals.
+
+Python compilation, JavaScript syntax and whitespace checks pass. A fresh-base
+patch verification and credential-value scan accompany the exported evidence.
+No full Frappe lifecycle, native saved workflow, migration, generated PDF layout,
+public-form/browser session, effective role or ledger has been tested here. No
+independent second-agent ledger/permission review occurred. These remain mandatory
+before their separately approved site batches. No remote push has occurred.
+
+### Final comparison for this action
+
+Origination remains net financed **720.98**, term charges **158.62**, repayment
+balance **879.60**, gross contract **1,049.60**, with a separate unchanged historic
+879.59 reference test. Native NPA **89**, penalty stop **90**, 111-row proposed chart
+and account-number invariants remain covered by passing tests. No ledger claim
+is made. LPO approval/submission handoff, site accounts/masters and full acceptance
+are not completed by this document-process action.
