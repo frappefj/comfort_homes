@@ -1,6 +1,6 @@
 # Flexi gross-HP correction candidate
 
-**Version:** 0.0.7.dev4. **Status:** NOT READY FOR DEPLOYMENT / DISBURSEMENT.
+**Version:** 0.0.7.dev5. **Status:** NOT READY FOR DEPLOYMENT / DISBURSEMENT.
 Prepared against `rebuild/gross-hp` at `7884c54a5980c3354ffa0f153120452a6f2cb4fa`.
 Native reference versions: Frappe 16.56.0, ERPNext 16.55.0, Lending 16.8.1.
 
@@ -291,3 +291,52 @@ balance **879.60**, gross contract **1,049.60**, with a separate unchanged histo
 and account-number invariants remain covered by passing tests. No ledger claim
 is made. LPO approval/submission handoff, site accounts/masters and full acceptance
 are not completed by this document-process action.
+
+
+## 11. Fresh-install permission correction (dev5)
+
+The user's devcom install log exposed a dev4 fixture defect: Co-Applicant was
+non-submittable but its embedded DocPerm rows still granted Submit to Loan
+Manager, Employee and Loan LOS User, and Amend to Loan Manager and Employee.
+Frappe v16.56.0 rejects these grants during fixture import, before the later
+explicit permission-setup action can run. The previous 173-test delivery did
+not exercise this native schema-permission validation.
+
+The correction keeps the approved non-submittable linked-profile design and
+replaces only this fixture's permissions with the existing hp_permissions
+Co-Applicant MATRIX and ASSESSMENT grants (nine roles at each of levels 0 and 1).
+No Submit/Cancel/Amend/Delete/Share/Email/Import rights remain; Employee is removed.
+Read/write/create, assessment-level access and reporting exports match the
+existing approved matrix. This does not apply Custom DocPerm or assign real users.
+Other fields, workflow transitions, calculations and the chart are unchanged.
+
+The uploaded main snapshot bc16a0ae6263645e224de2322d936caf4e1a10da also contained
+obsolete workflow.json alongside zz_workflow.json. The untouched checkout ran
+172 passed, 28 subtests passed and one failure: test_dependencies_precede_workflow.
+The primary workflow records in the two files were exactly equal. Remove the
+obsolete duplicate so each workflow imports once, from zz_workflow.json after
+its task dependencies. The primary workflow content remains unchanged.
+
+Verification: 183 tests and 28 subtests pass, no skips. Ten new cases compare
+both permission levels to the approved matrix, scan all non-submittable schema
+fixtures, execute the pinned native validate_permissions function against the
+corrected in-memory profile, reproduce each original invalid Submit/Amend grant,
+check the reference digest and enforce unique workflow import. Native source
+provenance and SHA-256 are bundled beside the test-only extracted function.
+Python compilation and git diff --check pass. Financial/origination and chart
+invariant tests are rerun as the final acceptance comparison for this batch.
+
+LIMITS: isolated native validation uses an Administrator context, not a full
+Frappe installation, migration, database or effective-role test. No independent
+second-agent permission review was available. Initial HTTP 403 was caused by including the credential-file API label in the
+Authorization value; corrected parsing authenticates with HTTP 200. Read-only
+checks show Frappe/ERPNext 16.60.0, Lending 16.8.1, app code dev4, 96 accounts,
+zero GL entries and no Co-Applicant DocType (404). App version reporting is not
+proof of completed installation. Frappe 16.60.0 validate_permissions is identical
+to the pinned 16.56.0 reference; source hash is recorded. Partial-install state
+requires fuller inspection before any retry. No devcom or UAT
+writes, install retry, migration, configuration or transaction occurred. A real
+successful install remains mandatory; this corrects the observed blocker, not
+proof that no subsequent install issue exists. Installation/deployment requires
+a separately approved batch and Frappe Cloud logs. Do not force or delete partial
+records merely to bypass errors.
