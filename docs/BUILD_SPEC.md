@@ -1,6 +1,6 @@
 # Flexi gross-HP correction candidate
 
-**Version:** 0.0.7.dev5. **Status:** NOT READY FOR DEPLOYMENT / DISBURSEMENT.
+**Version:** 0.0.7.dev6. **Status:** NOT READY FOR DEPLOYMENT / DISBURSEMENT.
 Prepared against `rebuild/gross-hp` at `7884c54a5980c3354ffa0f153120452a6f2cb4fa`.
 Native reference versions: Frappe 16.56.0, ERPNext 16.55.0, Lending 16.8.1.
 
@@ -340,3 +340,113 @@ successful install remains mandatory; this corrects the observed blocker, not
 proof that no subsequent install issue exists. Installation/deployment requires
 a separately approved batch and Frappe Cloud logs. Do not force or delete partial
 records merely to bypass errors.
+
+
+## 12. Consolidated complete-source installation review (dev6)
+
+The user requests a complete ZIP suitable for copying all repository files, not
+incremental patches. This snapshot is based on main
+`4c3769291b1cb152b6deac2eca2c3fd368ffb0d7` (the user's merged permission fix).
+It includes the complete custom app, not only the changed files. No main push,
+site write, deployment, retry, migration or financial transaction is performed.
+The user's direct main updates do not authorise an agent push to main.
+
+### Whole-app inventory and boundaries
+
+| Ships in this app | Must be configured/proved separately on devcom |
+|---|---|
+| Profile/address/child-table schema bootstrap; three schema fixtures including Co-Applicant and bank reconciliation | Actual native schema import/migration and successful app completion log |
+| 208 Custom Fields, 11 roles, 15 Workflow States, 18 actions, two task groups, two real workflows | Effective role assignments and independent maker/checker review |
+| 30 Server Scripts, 11 Client Scripts, public application form, browser assets | Server-script enablement/bench policy, public intake and permission sessions |
+| Eight Print Formats and eight templates (six legal, assessment, withdrawn REQ) | Native PDF engine/layout, real individual CIRA and signed-pack testing |
+| 111-account proposed chart; master/permission dry-run helpers | Explicit backup/chart-replacement approval, Company defaults, bank/modes/locations/employers and real users |
+| Gross booking, zero-rate Loan extension, deposit checks, interest/penalty/settlement/write-off code | All eight native acceptance checks plus additional scenarios and penny-level GL reconciliation |
+| HP Customer Statement and bank import/retry code | Report-to-GL comparison, write-off/waiver/closure scenarios and saved imports |
+| Registered daily/monthly jobs | Scheduler enabled status and observed job runs/reconciliations |
+
+These counts describe packaged configuration, not records already created on a
+site. Co-Applicant remains a non-submittable reviewed profile, not a second loan.
+Preserve original origination calculations/rate list and primary workflow.
+
+### Defects found and changes in this consolidated snapshot
+
+1. **Copy-over upload retained obsolete workflow.json.** The new main baseline
+   runs 181 passed + 28 subtests and two failed duplicate/order assertions. The
+   correct permission fix is already present. Instead of requiring deletion,
+   ship workflow.json as an empty `[]` compatibility fixture. Overwriting that
+   file neutralises the duplicate. Both real workflow records remain byte-identical
+   in zz_workflow.json, following roles/states/actions/scripts/task groups.
+2. **Post-install timing.** Native Frappe 16.60.0 install_app executes after_install
+   before sync_fixtures, and after_sync afterward. Full dependent setup now runs
+   only in setup_after_sync, bound to after_sync and after_migrate. It runs profile
+   field/profile configuration before form/print setup. Bootstrap remains before
+   install/migrate. Native installer/migrator reference extracts and hashes are
+   included; native code itself is not modified.
+3. **Suppressed print/template failures.** Remove broad exception swallowing from
+   print sync and assessment-template insertion. Errors now reach the install/
+   migrate log. Remove the normalizer's explicit commit; native installer commit
+   boundaries still exist, so this is NOT an atomic-install guarantee. No automatic
+   business masters, financial entries or Custom DocPerm application is added.
+4. **Website asset path.** Use the canonical /assets/comfort_homes/... URL for the
+   website branch-filter script, matching the actual packaged asset.
+5. **Fixture export completeness.** Include all nine imported geography Property
+   Setters in the existing export filter, rather than losing them at the next export.
+6. **Signature attribution.** Application Print WIP and standalone assessment HTML
+   no longer substitute the individual CIRA signature when a witness signature is
+   absent. Leave the witness area blank; keep the actual CIRA form unchanged.
+7. **Old README contradicted gross HP.** Replace its native-daily-interest/deposit-
+   Sales-Invoice model with the approved gross model and copy-based instructions.
+8. **Copy verification.** tools/verify_release.py and RELEASE_MANIFEST.json detect
+   missing/changed source and unexpected app code/fixtures after copying. They are
+   local read-only integrity checks, not installation commands or digital signatures.
+   No deletions are needed when overwriting the specifically reviewed main base.
+
+### Review/test evidence
+
+- Full source suite: **203 tests + 28 subtests pass**, no skips. Twenty new cases
+  cover complete schema/link/table closure, field/fixture identity, public form
+  fields, workflow dependencies/roles, export preservation, hook order/callables,
+  post-sync sequencing, failure propagation, template syntax and safe copy verification.
+- Read-only devcom native metadata supplies an explicitly labelled schema-only
+  reference (Frappe/ERPNext 16.60.0, Lending 16.8.1). No missing app-owned Link/Table
+  targets or public web-form fields are found. Native app internal dependencies
+  remain the native apps' responsibility. This is not a native schema save.
+- Native permission validator accepts all non-table schema fixtures in isolation.
+  It uses Administrator context, not effective-role acceptance. No independent
+  second-agent permission/ledger review is available in this session.
+- All **30** Server Script sources parse as Python; **23** shipped standalone/report/
+  fixture browser scripts pass Node syntax checks; **15** fixture/standalone HTML
+  templates pass Jinja parsing. This does NOT render PDFs or certify safe-exec execution.
+- Python compilation and whitespace checks pass. The declared Flit build is exercised
+  for both source distribution and wheel; all packaged app runtime source/assets,
+  reports, fixtures, chart and print sources are checked in the wheel. Local tooling
+  initially installed Flit 4; using the project's declared Flit >=3.4,<4 resolves
+  the local build-tool mismatch without changing app dependency requirements.
+- Local runtime is Python 3.12.15 / Node 24.22.1; this is NOT Frappe's Python 3.14
+  bench runtime. Do not infer native installation from a successful wheel build.
+- The complete ZIP is copied over a clean checkout of the reviewed main base and
+  source-manifest checked, then the full suite is rerun. All source ZIP files are
+  verified against the final local commit. Supplied devcom key/secret values are
+  scanned against deliverables; this is not a full Git-history security audit.
+- Final worked comparison: original financial modules/chart unchanged; approved
+  origination net financed 720.98, charges 158.62, Loan 879.60, gross 1049.60;
+  historical fixed 879.59 case remains distinct. Account chart stays 111 rows.
+
+### Not silently completed
+
+A complete source ZIP is not a declaration that the whole implementation is
+finished. The primary workflow's LPO approval-to-native-PO-submission handoff is
+still an open code/acceptance item; this consolidation does not invent a submission
+action. Full financial/report/write-off/waiver and PDF/browser acceptance remain
+outstanding. Finance/legal decisions on settlement fees/month counting, penalty
+waiver presentation and repossession remain open; digital contract signing stays
+disabled. No legacy portfolio migration is added.
+
+The last observed devcom state was app code dev4 reported with Co-Applicant 404,
+96 accounts and zero GL entries. App listing alone cannot establish install
+completion because native registration commits precede fixtures. Before any retry,
+read current state and Cloud logs; use a separately approved install/recovery batch,
+not force-install or record deletion. Review outbound mail and bench isolation from
+UAT. After successful installation, Company/COA/master/permission and test-data
+batches remain separately approved. The next deliverable is this full ZIP for the
+user's copy/upload and source verification, not another patch to learn.

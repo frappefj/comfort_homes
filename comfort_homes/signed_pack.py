@@ -172,15 +172,9 @@ def sync_reviewed_print_formats():
 		if frappe.db.exists("Print Format", format_name):
 			print_format = frappe.get_doc("Print Format", format_name)
 			print_format.update(source)
-			try:
-				print_format.save(ignore_permissions=True)
-			except Exception:
-				frappe.log_error(title=f"Print Format sync: {format_name}")
+			print_format.save(ignore_permissions=True)
 		else:
-			try:
-				frappe.get_doc(source).insert(ignore_permissions=True)
-			except Exception:
-				frappe.log_error(title=f"Print Format insert: {format_name}")
+			frappe.get_doc(source).insert(ignore_permissions=True)
 		updated.append(format_name)
 
 	# Existing direct-print links may still use a former format name.  Update
@@ -254,11 +248,7 @@ def _ensure_assessment_document_template():
 		if k in valid_fields
 	}
 	safe_doc["doctype"] = "Loan Document Template"
-	try:
-		return frappe.get_doc(safe_doc).insert(ignore_permissions=True)
-	except Exception:
-		frappe.log_error(title="Assessment template insert failed")
-		return None
+	return frappe.get_doc(safe_doc).insert(ignore_permissions=True)
 
 
 def ensure_assessment_customer_document(doc, method=None):
@@ -384,7 +374,6 @@ def normalize_customer_print_formats():
 			client_script.save(ignore_permissions=True)
 
 	frappe.clear_cache(doctype="Loan Application")
-	frappe.db.commit()
 	return {"updated_print_formats": updated, "signing_client_scripts_disabled": True}
 
 

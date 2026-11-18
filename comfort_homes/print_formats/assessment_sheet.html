@@ -586,7 +586,6 @@
         <div class="sig-box">
             <div class="sig-label">Witness: {{ doc.get('custom_witness_name') or '________________' }}</div>
             {% if doc.get('custom_witness_signature') %}<img class="sig-img" src="{{ doc.custom_witness_signature }}">
-            {% elif doc.get('custom_cira_authority_signature') %}<img class="sig-img" src="{{ doc.custom_cira_authority_signature }}">
             {% else %}<div style="height:35px;"></div>{% endif %}
             {% if doc.get('custom_witness_address') %}<div style="font-size:7pt; color:#64748b;">{{ doc.custom_witness_address }}</div>{% endif %}
             {% if doc.get('custom_witness_date') %}<div style="font-size:7pt; color:#64748b;">Date: {{ frappe.format(doc.custom_witness_date, {"fieldtype":"Date"}) }}</div>{% endif %}

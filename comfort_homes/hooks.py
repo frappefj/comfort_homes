@@ -11,7 +11,7 @@ app_license = "mit"
 # copies register competing Currency input listeners and can corrupt a value
 # while a customer is typing it.
 app_include_js = ["/assets/comfort_homes/js/hp_origination_math.js"]
-web_include_js = ["/assets/comfort_homes/js/hp_origination_math.js", "public/js/loan_application_branch_filter.js"]
+web_include_js = ["/assets/comfort_homes/js/hp_origination_math.js", "/assets/comfort_homes/js/loan_application_branch_filter.js"]
 
 doctype_js = {
 	"Loan": "public/js/loan_temporary_repayment_tenure.js",
@@ -31,18 +31,10 @@ extend_doctype_class = {
 override_doctype_dashboards = {
 	"Loan Application": "comfort_homes.loan_mapping.get_loan_application_dashboard_data",
 }
-after_migrate = [
-	"comfort_homes.co_applicant.ensure_loan_application_fields",
-	"comfort_homes.co_applicant.configure_co_applicant_profile",
-	# This is deliberately the full app-owned setup, not merely the legacy CSS
-	# cleanup.  It syncs all seven reviewed formats and backfills the non-signing
-	# Assessment template. Existing records require an explicit backfill.
-	"comfort_homes.webform_setup.setup_web_form_and_print_formats",
-]
-# A first-time app installation performs fixture sync but not an ordinary site
-# migration.  Apply the same idempotent Web Form setup after either path.
-after_install = "comfort_homes.webform_setup.setup_web_form_and_print_formats"
-after_sync = "comfort_homes.webform_setup.setup_web_form_and_print_formats"
+# Dependent setup belongs after fixture import, not after_install: Frappe 16
+# invokes after_install before sync_fixtures. Migration has its own final hook.
+after_migrate = "comfort_homes.webform_setup.setup_after_sync"
+after_sync = "comfort_homes.webform_setup.setup_after_sync"
 
 # Customer-document Jinja helpers.  They expose linked Co-Applicant details
 # only where a print format explicitly requests them.
@@ -92,6 +84,15 @@ fixtures = [
 	{
 		"dt": "Property Setter",
 		"filters": [["name", "in", [
+			"City-main-search_fields",
+			"City-main-show_title_field_in_link",
+			"City-main-title_field",
+			"Province-main-search_fields",
+			"Province-main-show_title_field_in_link",
+			"Province-main-title_field",
+			"Suburb-main-search_fields",
+			"Suburb-main-show_title_field_in_link",
+			"Suburb-main-title_field",
 			"Loan Application-custom_flexi_payment_period-options",
 			"Loan Application-applicant_name-label",
 			"Loan Application-applicant_name-insert_after",

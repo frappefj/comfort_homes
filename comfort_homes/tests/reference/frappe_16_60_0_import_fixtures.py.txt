@@ -1,0 +1,17 @@
+def import_fixtures(app):
+	fixtures_path = frappe.get_app_path(app, "fixtures")
+	if not os.path.exists(fixtures_path):
+		return
+
+	fixture_files = sorted(os.listdir(fixtures_path))
+
+	for fname in fixture_files:
+		if not fname.endswith(".json"):
+			continue
+
+		file_path = frappe.get_app_path(app, "fixtures", fname)
+		try:
+			import_doc(file_path, sort=True)
+		except (ImportError, frappe.DoesNotExistError) as e:
+			# fixture syncing for missing doctypes
+			print(f"Skipping fixture syncing from the file {fname}. Reason: {e}")
