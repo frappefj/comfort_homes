@@ -24,7 +24,9 @@ class TestOriginationWiring(unittest.TestCase):
 
     def test_dependencies_precede_workflow(self):
         names = sorted(p.name for p in (ROOT / "fixtures").glob("*.json"))
-        self.assertNotIn("workflow.json", names)
+        # Empty overwrite-safe compatibility fixture prevents a stale overlay
+        # from reintroducing the old, premature workflow import.
+        self.assertEqual(json.loads((ROOT / "fixtures/workflow.json").read_text()), [])
         self.assertLess(names.index("00_00_role.json"), names.index("00_co_applicant_schema.json"))
         self.assertLess(names.index("server_script.json"), names.index("workflow_transition_tasks.json"))
         self.assertLess(names.index("workflow_transition_tasks.json"), names.index("zz_workflow.json"))

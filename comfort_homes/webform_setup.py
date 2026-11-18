@@ -709,6 +709,20 @@ def inject_loan_application_duplicate_check():
 		web_form.save(ignore_permissions=True)
 
 
+def setup_after_sync():
+	"""Final app-owned configuration, only after schema and fixture import.
+
+	No business masters, financial postings, user assignments or permission-matrix
+	application belong here. Exceptions must propagate to the install/migrate log.
+	"""
+	from comfort_homes.co_applicant import (
+		ensure_loan_application_fields, configure_co_applicant_profile,
+	)
+	ensure_loan_application_fields()
+	configure_co_applicant_profile()
+	return setup_web_form_and_print_formats()
+
+
 def setup_web_form_and_print_formats():
 	"""Apply idempotent public-form and app-owned print-format repairs.
 

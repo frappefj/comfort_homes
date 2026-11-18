@@ -1,0 +1,56 @@
+def post_schema_updates(self):
+		"""Execute pending migration tasks post patches execution & schema sync
+		This includes:
+		* Sync `Scheduled Job Type` and scheduler events defined in hooks
+		* Sync fixtures & custom scripts
+		* Sync in-Desk Module Dashboards
+		* Sync customizations: Custom Fields, Property Setters, Custom Permissions
+		* Sync Frappe's internal language master
+		* Flush deferred inserts made during maintenance mode.
+		* Sync Portal Menu Items
+		* Sync Installed Applications Version History
+		* Execute `after_migrate` hooks
+		"""
+		print("Syncing jobs...")
+		sync_jobs()
+
+		from frappe.database.sequence import create_missing_sequences
+
+		if recreated := create_missing_sequences():
+			print(f"Recreated missing sequences for: {', '.join(recreated)}")
+
+		if not self.skip_fixtures:
+			print("Syncing fixtures...")
+			sync_fixtures()
+		else:
+			print("Skipping fixtures...")
+		sync_standard_items()
+
+		print("Syncing dashboards...")
+		sync_dashboards()
+
+		print("Syncing customizations...")
+		sync_customizations()
+
+		print("Syncing languages...")
+		sync_languages()
+
+		print("Flushing deferred inserts...")
+		flush_deferred_inserts()
+
+		print("Removing orphan doctypes...")
+		frappe.model.sync.remove_orphan_doctypes()
+
+		frappe.model.sync.remove_orphan_entities()
+		frappe.model.sync.delete_duplicate_icons()
+
+		print("Syncing portal menu...")
+		frappe.get_single("Portal Settings").sync_menu()
+
+		print("Updating installed applications...")
+		frappe.get_single("Installed Applications").update_versions()
+
+		print("Executing `after_migrate` hooks...")
+		for app in frappe.get_installed_apps():
+			for fn in frappe.get_hooks("after_migrate", app_name=app):
+				frappe.get_attr(fn)()
