@@ -4,44 +4,6 @@
 const DEPOSIT_INVOICE_STATES = ["Approved", "Contract Signing", "Awaiting Customer Signature"];
 
 frappe.ui.form.on("Loan Application", {
-	refresh(frm) {
-		if (frm.is_new()) return;
-
-		// 1. Only after approval
-		if (!DEPOSIT_INVOICE_STATES.includes(frm.doc.workflow_state)) return;
-		if (frm.__comfortDepositInvoiceActionRegistered) return;
-
-		const addButton = () => {
-			frm.add_custom_button(__("Record Deposit Payment"), () => {
-				frappe.call({
-					method: "comfort_homes.api.create_deposit_payment_entry",
-					args: { loan_application: frm.doc.name },
-					freeze: true,
-					freeze_message: __("Creating draft deposit payment..."),
-					callback(response) {
-						const invoice = response.message;
-						if (!invoice) return;
-						frappe.set_route("Form", "Payment Entry", invoice.name);
-					},
-				});
-			}, __("Create"));
-		};
-
-		// 2. Hide once a deposit invoice exists (show again only if it was cancelled or deleted)
-		const invoice = frm.doc.custom_hp_deposit_payment_entry;
-		if (!invoice) {
-			addButton();
-			frm.__comfortDepositInvoiceActionRegistered = true;
-			return;
-		}
-		frappe.db.get_value("Payment Entry", invoice, "docstatus").then((r) => {
-			const docstatus = r && r.message ? r.message.docstatus : null;
-			if (docstatus === 2 || docstatus === null || docstatus === undefined) {
-				addButton();
-				frm.__comfortDepositInvoiceActionRegistered = true;
-			}
-		});
-	},
 	before_workflow_action(frm) {
 		const action = frm.selected_workflow_action;
 		const fromState = frm.doc.workflow_state || "";

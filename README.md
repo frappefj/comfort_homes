@@ -1,6 +1,6 @@
 # Comfort Homes — Flexi gross hire purchase
 
-**Consolidated candidate: 0.0.7.dev6.** Complete source snapshot, not a patch.
+**Consolidated candidate: 0.0.7.dev7.** Complete source snapshot, not a patch.
 For Frappe 16, ERPNext 16 and Frappe Lending 16. Implementation target:
 **devcom.syd.frappe.cloud**. Comfort UAT is strictly read-only.
 
@@ -19,7 +19,8 @@ It is **not approved for live disbursement**.
 | Gross booking | Native disbursement plus one tagged deposit/fees/VAT/deferred-interest journal |
 | Interest and arrears | Straight-line release with overdue pause/catch-up; periodic non-compounding late charges |
 | Settlement | Rule-of-78 rebate through native balance adjustment |
-| Documents | Individual CIRA consent/PDF, post-KYC assessment, paper-contract scans and manager review |
+| Documents | Individual CIRA, persisted post-KYC assessment, one combined six-form private pack and separate manager review |
+| Financial handoff | Native Loan/deposit/disbursement links, actual-status warnings, server-side progression gates and native PO approval submission |
 | Digital legal contracts | Disabled pending lawyer advice and separate approval |
 | Configuration | Portable schemas, fixtures, 111-account proposed chart, master and permission previews |
 | Reporting/collections | HP Customer Statement and bank-repayment import/retry controls |
@@ -47,7 +48,7 @@ former README is superseded.
    source-manifest verification **before deploying**.
 
 This copy method was checked against main
-`4c3769291b1cb152b6deac2eca2c3fd368ffb0d7`. The verifier detects missing/changed
+`a1a5e7a1db7a43e0ffcea081f255d5825efbc8f1`. The verifier detects missing/changed
 files and unexpected app code/fixtures that may survive an older overlay.
 For a different local base, verify the result rather than assuming an overlay
 is exact. We do not automatically delete unknown files.
@@ -65,13 +66,9 @@ provided by Frappe Cloud; a local Python build is not a Frappe runtime test.
 Runtime PDF and spreadsheet libraries are already provided by Frappe; no native
 app Python dependency is re-declared in this custom app.
 
-## Installation/recovery comes next, under separate approval
+## Test-site update comes next, under separate approval
 
-Frappe Cloud must deploy the exact reviewed source to devcom only. We must first
-inspect the failed installation state: Frappe registers installed-app metadata
-before fixture import finishes, so an app version in the list is not proof that
-installation completed. Do not force-install, uninstall or delete partial records
-to get past an error.
+Frappe Cloud must deploy the reviewed source to **devcom only**, after explicit approval and a recoverable backup. Existing devcom dev6 installation is already verified; do not reopen INSTALL-01 or reinstall/uninstall. For any separate fresh site, verify fixtures/migration rather than trusting the app version alone. See **docs/CONSOLIDATED_REWORK_DEV7.md** before deploying: it lists intentional workflow task/gate changes, existing inconsistent test states, native telemetry limits and the acceptance runbook.
 
 Schema bootstrap runs before fixtures. Full app-owned profile/form/print setup
 runs after fixture sync on install and at the end of migration. Setup errors
@@ -84,8 +81,7 @@ real users, business locations and financial test transactions remain separate
 approved batches. Master and permission functions default to dry run. App
 installation itself imports app-owned configuration and is therefore a site
 change requiring approval. Frappe Cloud Migrate is a dashboard action, not REST.
-The primary workflow retains email alerts; outbound notifications must be reviewed
-before any test application/workflow transitions. Scheduler registration does not
+The test candidate preserves workflow email suppression (send_email_alert=0); review and explicitly approve production notification enablement. Scheduler registration does not
 prove jobs have run.
 
 ## License

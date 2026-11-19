@@ -21,7 +21,7 @@ const frappe={session:{user:'officer@example.invalid'}, user_roles:['Loan Office
 const context={window:{},frappe,__:x=>x,console}; vm.createContext(context);
 vm.runInContext(source,context);vm.runInContext(source,context);
 assert.equal(registrations,2,'Shared asset must register each DocType only once');
-function form(type,state){return {doctype:type,doc:{name:'APP',docstatus:0,workflow_state:state},
+function form(type,state){return {doctype:type,doc:{name:'APP',docstatus:0,workflow_state:state,custom_document_collection_complete:'Yes'},
     is_new:()=>false,is_dirty:()=>false,reload_doc:()=>Promise.resolve(),buttons:{},
     add_custom_button(label,action){this.buttons[label]=action;}};}
 const app=form('Loan Application','Contract Signing');handlers['Loan Application'].refresh(app);

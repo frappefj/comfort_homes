@@ -24,5 +24,17 @@
     "asynchronous": 0
    }
   ]
+ },
+ {
+  "doctype": "Workflow Transition Tasks",
+  "name": "Flexi Approve LPO",
+  "tasks": [
+   {
+    "doctype": "Workflow Transition Task",
+    "task": "Flexi Submit Approved LPO",
+    "enabled": 1,
+    "asynchronous": 0
+   }
+  ]
  }
 ]

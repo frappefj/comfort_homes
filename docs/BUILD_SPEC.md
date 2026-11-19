@@ -1,6 +1,8 @@
 # Flexi gross-HP correction candidate
 
-**Version:** 0.0.7.dev6. **Status:** NOT READY FOR DEPLOYMENT / DISBURSEMENT.
+**Current version:** 0.0.7.dev7. **Status:** SOURCE CANDIDATE — NOT DEPLOYED OR LIVE-DISBURSEMENT ACCEPTED.
+
+**Latest:** docs/CONSOLIDATED_REWORK_DEV7.md supersedes historical status statements below. Baseline main a1a5e7a1db7a43e0ffcea081f255d5825efbc8f1. No site deployment in this action.
 Prepared against `rebuild/gross-hp` at `7884c54a5980c3354ffa0f153120452a6f2cb4fa`.
 Native reference versions: Frappe 16.56.0, ERPNext 16.55.0, Lending 16.8.1.
 
@@ -450,3 +452,14 @@ not force-install or record deletion. Review outbound mail and bench isolation f
 UAT. After successful installation, Company/COA/master/permission and test-data
 batches remain separately approved. The next deliverable is this full ZIP for the
 user's copy/upload and source verification, not another patch to learn.
+
+
+## 13. Consolidated acceptance rework (dev7)
+
+See **CONSOLIDATED_REWORK_DEV7.md** for the complete investigation, changes, native boundaries and approval-gated deployment/test sequence. Native Submit and Create controls were observed in the supplied browser session, without clicking. The confirmed app gap is the application-to-financial-record handoff and progression guards.
+
+Assessment rendering now uses a separate document and checks saved evidence. Combined signed-pack recording is one atomic six-row action with separate manager review; same-day signing is retained. Missing scans are named. Native LPO approval task submits the exact linked PO with native permissions. Gates cover both ordinary and update-after-submit application transitions. Reclass uses actual native GL date; no native past-date override. Telemetry remains an external native finding with an optional, separately approved setting-based opt-out.
+
+Verified acceptance basis is unchanged:720.98 financed,158.62 charges,879.60 repayment balance,1049.60 gross,73.30x12,806.30 after one payment,145.40 deferred after13.22 release,42.71 month-six rebate. These are expected amounts and local regressions, not newly posted dev7 site entries. Existing devcom GL remains the two170 deposit receipts only at the investigation boundary.
+
+111-account source chart incorporates the user-approved1195 Expense/5200 change. Approved operational reference metadata is bundled outside fixtures; no automatic import/role assignment or financial posting occurs. Main workflow email flag stays0 for the test rollout; states15/transitions20 preserved except intentional LPO approval task bindings. Current role matrix is not applied or independently accepted.

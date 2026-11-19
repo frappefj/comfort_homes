@@ -1,5 +1,17 @@
 # Comfort Homes — Changelog
 
+## 0.0.7.dev7 — consolidated acceptance rework
+
+- Isolate PDF rendering from saved assessment document and verify persisted evidence.
+- One combined six-form paper-pack recording action; preserve private PDFs, hashes, human attestations, same-day signing and manager review.
+- Name missing legal-document scans instead of reporting an unrelated privacy error.
+- Clear native financial handoff links and deposit draft/submitted status; remove duplicate deposit button implementations.
+- Gate LPO/Active/Closed transitions on actual native financial completion, including update-after-submit.
+- Both LPO approval roles submit the exact linked PO through a native synchronous task with permissions and retry safety.
+- Reclass uses actual native posting date; no native backdated GL override.
+- Stage-specific document menus, safe test email default, approved1195 chart amendment, deterministic master groups and reference-only operational configuration.
+- Native telemetry warning remains documented, not monkey-patched. No deployment/production financial acceptance.
+
 ## v0.0.6 (November 2026) — Gross HP rebuild, setup and settlement
 
 - Gross Hire Purchase model on native Lending: loan at 0% for the balance after deposit; one booking
