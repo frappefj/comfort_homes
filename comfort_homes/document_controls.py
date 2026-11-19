@@ -167,7 +167,7 @@ def _restore_protected(doc):
     if any(old.get('final_signed_file') and name not in current_names for name, old in old_rows.items()):
         frappe.throw('Keep recorded signature rows and earlier files; use explicit evidence supersession')
     for row in current_rows:
-        if action in ((doc.name, 'scan', row.name), (doc.name, 'verify', None)):
+        if action in ((doc.name, 'scan', row.name), (doc.name, 'verify', None), (doc.name, 'pack', None)):
             continue
         old = old_rows.get(row.name)
         if old and old.get('final_signed_file') and any(row.get(k) != old.get(k) for k in ('document_template', 'document_code')):
@@ -242,6 +242,10 @@ def _save(doc, kind, row=None, manager=False):
         # Manager verification is a narrow role-authorised action, not general
         # permission to edit the officer's form or any financial document.
         doc.save(ignore_permissions=manager)
+    if kind == 'assessment':
+        persisted = frappe.db.get_value(doc.doctype, doc.name, list(ASSESSMENT_FIELDS), as_dict=True)
+        if not persisted or any(persisted.get(field) != doc.get(field) for field in ASSESSMENT_FIELDS):
+            frappe.throw('Assessment PDF was created but evidence was not saved; stop and report this error, do not repeatedly generate copies')
 
 
 def _load_pdf(doc, url):
@@ -280,7 +284,9 @@ def generate_assessment_pdf(loan_application):
     doc = _application(loan_application)
     if doc.get('custom_document_collection_complete') != 'Yes': frappe.throw('Complete KYC before generating the assessment PDF')
     _require_cira(doc)
-    content = frappe.get_print('Loan Application', doc.name, print_format='Application Print WIP', doc=doc, as_pdf=True, no_letterhead=1)
+    # Native printview marks its document in_print; never render on the saved instance.
+    render_doc = frappe.get_doc('Loan Application', doc.name)
+    content = frappe.get_print('Loan Application', doc.name, print_format='Application Print WIP', doc=render_doc, as_pdf=True, no_letterhead=1)
     if not isinstance(content, bytes) or not content.startswith(b'%PDF-'):
         frappe.throw('Assessment PDF generation failed; do not attach HTML as a PDF')
     file = _attach(doc, 'Application Assessment - ' + doc.name + '.pdf', content)
@@ -352,10 +358,56 @@ def record_signed_scan(loan_application, agreement_row, file_url, customer_signe
     return {'status': 'Ready', 'file_url': file_url, 'requires_manager_verification': True}
 
 
+@frappe.whitelist(methods=['POST'])
+def record_signed_pack(loan_application, file_url, customer_signed_date,
+                       manager_signed_date, manager_name, confirm_all_forms=0,
+                       confirm_execution=0, supersede=0, reason=None):
+    """One private six-form paper pack, one atomic save, separate manager review."""
+    doc = _application(loan_application, manager=bool(cint(supersede)))
+    if doc.workflow_state != 'Contract Signing':
+        frappe.throw('Record the combined signed pack during Contract Signing')
+    if not cint(confirm_all_forms):
+        frappe.throw('Confirm this PDF contains all six required legal forms for this application')
+    pairs = _legal_rows(doc)
+    if any(row.status == 'Completed' for row, _ in pairs.values()):
+        frappe.only_for(('Finance Manager', 'Director'))
+        if not cint(supersede) or not str(reason or '').strip():
+            frappe.throw('A manager must explicitly supersede verified evidence with a reason; earlier files are retained')
+    content = _load_pdf(doc, file_url)
+    digest = hashlib.sha256(content).hexdigest()
+    staged, manager_codes = [], set()
+    for code, (row, template) in pairs.items():
+        required = bool(template.requires_director_signature)
+        values = dict(final_signed_file=file_url, custom_hp_customer_signed_date=customer_signed_date,
+            custom_hp_manager_signed_date=manager_signed_date if required else None,
+            director_name=manager_name if required else None, custom_hp_signed_scan_hash=digest,
+            custom_hp_contract_fingerprint=_row_hash(doc, template),
+            custom_hp_execution_attested=cint(confirm_execution), custom_hp_verified_by=None,
+            custom_hp_verified_on=None, completed_on=None, status='Ready')
+        trial = {**row.as_dict(), **values}
+        errors = scan_issues(trial, values['custom_hp_contract_fingerprint'], digest,
+                             getdate(today()), required)
+        if errors: frappe.throw(code + ': ' + '; '.join(errors))
+        staged.append((row, values, trial))
+        if required: manager_codes.add(code)
+    errors = pack_order_issues([trial for _, _, trial in staged], manager_codes)
+    if errors: frappe.throw('; '.join(errors))
+    for row, values, _ in staged:
+        for field, value in values.items(): row.set(field, value)
+    if cint(supersede):
+        doc.add_comment('Comment', 'Combined signed-pack supersession requested: ' + str(reason))
+    _save(doc, 'pack', manager=bool(cint(supersede)))
+    return dict(recorded=len(staged), file_url=file_url, requires_manager_verification=True)
+
+
 def _check_scans(doc, require_verified):
     import hashlib
     rows, manager_codes = [], set()
-    for code, (row, template) in _legal_rows(doc).items():
+    pairs = _legal_rows(doc)
+    missing = [code for code, (row, _) in pairs.items() if not row.get('final_signed_file')]
+    if missing:
+        frappe.throw('Signed scan not recorded for: ' + ', '.join(missing) + '. Use Record Combined Signed Pack or Record Wet-signed Scan; an attachment alone is not a recorded legal document.')
+    for code, (row, template) in pairs.items():
         content = _load_pdf(doc, row.final_signed_file)
         errors = scan_issues(row, _row_hash(doc, template), hashlib.sha256(content).hexdigest(), getdate(today()), bool(template.requires_director_signature))
         if require_verified and (row.status != 'Completed' or not row.get('custom_hp_verified_by') or not row.get('custom_hp_verified_on')):

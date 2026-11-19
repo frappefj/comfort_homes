@@ -72,7 +72,7 @@ def on_disbursement_submit(doc, method=None):
 		"doctype": "Journal Entry",
 		"voucher_type": "Journal Entry",
 		"company": loan.company,
-		"posting_date": doc.disbursement_date,
+		"posting_date": doc.posting_date or doc.disbursement_date,
 		"custom_hp_loan": loan.name,
 		"custom_hp_entry_type": TYPE_RECLASS,
 		"user_remark": _("Gross HP booking for {0} ({1}) [HP-RECLASS-{2}]").format(loan.name, application.name, doc.name),

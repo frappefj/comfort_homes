@@ -22,6 +22,7 @@ doctype_js = {
 		"public/js/loan_application_workflow_notes.js",
 		"public/js/loan_application_signed_pack.js",
 		"public/js/document_evidence.js",
+        "public/js/hp_workflow_handoff.js",
 	]
 }
 extend_doctype_class = {
@@ -175,7 +176,7 @@ fixtures = [
 	},
 	{
 		"dt": "Workflow Transition Tasks",
-		"filters": [["name", "in", ["Flexi Generate LPO", "Flexi Loan Application Transition Tasks"]]],
+		"filters": [["name", "in", ["Flexi Generate LPO", "Flexi Loan Application Transition Tasks", "Flexi Approve LPO"]]],
 	},
 	{
 		"dt": "Workflow",
@@ -213,8 +214,9 @@ doc_events = {
 		"before_validate": "comfort_homes.loan_mapping.apply_purchase_invoice_loan_application",
 	},
 	"Loan Application": {
-		"before_save": ["comfort_homes.loan_application_workflow.calculate_financials", "comfort_homes.document_controls.validate_application"],
-		"before_submit": ["comfort_homes.loan_application_workflow.calculate_financials", "comfort_homes.document_controls.validate_application"],
+		"before_update_after_submit": "comfort_homes.hp_lending.hp_workflow.validate_progress",
+		"before_save": ["comfort_homes.loan_application_workflow.calculate_financials", "comfort_homes.document_controls.validate_application", "comfort_homes.hp_lending.hp_workflow.validate_progress"],
+		"before_submit": ["comfort_homes.loan_application_workflow.calculate_financials", "comfort_homes.document_controls.validate_application", "comfort_homes.hp_lending.hp_workflow.validate_progress"],
 		"before_insert": "comfort_homes.loan_application_workflow.validate_public_application_not_existing_customer",
 		"before_validate": [
 			"comfort_homes.signed_pack.ensure_assessment_customer_document",
@@ -473,3 +475,6 @@ scheduler_events = {
 # ------------
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
+
+# Native workflow task; no direct status or GL edits.
+workflow_methods = [{"name": "Flexi Submit Approved LPO", "method": "comfort_homes.hp_lending.hp_workflow.submit_approved_lpo"}]

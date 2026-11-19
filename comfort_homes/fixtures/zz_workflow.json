@@ -8,7 +8,7 @@
   "modified": "2026-10-14 16:49:01.252275",
   "name": "Loan Application Workflow-1",
   "override_status": 0,
-  "send_email_alert": 1,
+  "send_email_alert": 0,
   "states": [
    {
     "allow_edit": "Loan LOS User",
@@ -384,7 +384,7 @@
     "next_state": "LPO Approved",
     "send_email_to_creator": 0,
     "state": "LPO Pending Approval",
-    "transition_tasks": "",
+    "transition_tasks": "Flexi Approve LPO",
     "workflow_builder_id": null
    },
    {
@@ -395,7 +395,7 @@
     "next_state": "LPO Approved",
     "send_email_to_creator": 0,
     "state": "LPO Pending Approval",
-    "transition_tasks": null,
+    "transition_tasks": "Flexi Approve LPO",
     "workflow_builder_id": null
    },
    {

@@ -197,9 +197,9 @@ class TestOriginationPreservation(unittest.TestCase):
 
     def test_task_group_fixture_has_native_synchronous_dependencies(self):
         groups = json.loads((ROOT / 'fixtures/workflow_transition_tasks.json').read_text())
-        assert {g['name'] for g in groups} == {'Flexi Generate LPO', 'Flexi Loan Application Transition Tasks'}
+        assert {g['name'] for g in groups} == {'Flexi Generate LPO', 'Flexi Loan Application Transition Tasks', 'Flexi Approve LPO'}
         assert all((g['tasks'][0]['enabled'] == 1 and g['tasks'][0]['asynchronous'] == 0 for g in groups))
-        assert all((g['tasks'][0]['task'] == 'Server Script' for g in groups))
+        assert all(g['tasks'][0]['task'] == ('Flexi Submit Approved LPO' if g['name'] == 'Flexi Approve LPO' else 'Server Script') for g in groups)
 
     def test_existing_customer_prefill_keeps_saved_identity_and_customer_unchanged(self):
         customer = Model(customer_name='Sample X Borrower', customer_primary_contact='CONTACT-TEST',

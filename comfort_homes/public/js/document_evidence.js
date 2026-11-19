@@ -57,13 +57,37 @@
             });
         }, __("Select signed document"), __("Upload private PDF"));
     }
+    function recordCombinedPack(frm) {
+        if (!saved(frm)) return;
+        const completed = (frm.doc.custom_customer_documents || []).some(r => legal.includes(r.document_code) && r.status === "Completed");
+        if (completed && !isManager()) return frappe.msgprint(__("A manager must supersede a verified pack."));
+        upload(frm, file_url => {
+            const fields = [
+                {fieldname:"customer_signed_date", label:__("Last customer/co-hirer signing date"), fieldtype:"Date", reqd:1},
+                {fieldname:"manager_signed_date", label:__("Manager ink-signing date (same day is allowed)"), fieldtype:"Date", reqd:1},
+                {fieldname:"manager_name", label:__("Manager signatory shown on pack"), fieldtype:"Data", reqd:1},
+                {fieldname:"confirm_all_forms", label:__("This PDF contains all six required forms for this application"), fieldtype:"Check", reqd:1},
+                {fieldname:"confirm_execution", label:__("I checked every required signature; all customers signed before the manager, including same-day signing"), fieldtype:"Check", reqd:1},
+            ];
+            if (completed) fields.push(
+                {fieldname:"supersede",label:__("Explicitly supersede verified pack; retain history"),fieldtype:"Check",reqd:1},
+                {fieldname:"reason",label:__("Reason for supersession"),fieldtype:"Small Text",reqd:1});
+            frappe.prompt(fields, values => call(frm, "record_signed_pack", {
+                ...values, loan_application:frm.doc.name, file_url,
+            }), __("Record combined signed pack"), __("Record for manager review"));
+        });
+    }
     function refresh(frm) {
         if (frm.is_new() || frm.doc.docstatus !== 0) return;
+        const state = frm.doc.workflow_state || "Draft";
+        // Keep intake and contract actions out of intermediate review/approval screens.
+        if (frm.doctype === "Loan Application" && !["Draft", "Contract Signing"].includes(state)) return;
         const group = __("Document Evidence");
         frm.add_custom_button(__("Generate Individual CIRA PDF"), () => {
             if (saved(frm)) call(frm, "generate_cira_pdf", {doctype: frm.doctype, name: frm.doc.name});
         }, group);
         if (frm.doctype !== "Loan Application") return;
+        if (frm.doc.custom_document_collection_complete !== "Yes") return;
         frm.add_custom_button(__("Generate Assessment PDF"), () => {
             if (saved(frm)) call(frm, "generate_assessment_pdf", {loan_application: frm.doc.name});
         }, group);
@@ -73,7 +97,8 @@
                 () => call(frm, "record_assessment_pdf", {loan_application: frm.doc.name, file_url, confirm_current: 1})));
         }, group);
         if (frm.doc.workflow_state !== "Contract Signing") return;
-        frm.add_custom_button(__("Record Wet-signed Scan"), () => recordScan(frm), group);
+        frm.add_custom_button(__("Record Combined Signed Pack"), () => recordCombinedPack(frm), group);
+        frm.add_custom_button(__("Record Wet-signed Scan"), () => recordScan(frm), __("Individual Forms (optional)"));
         if (isManager()) frm.add_custom_button(__("Verify Uploaded Contract Pack"), () => {
             if (!saved(frm)) return;
             frappe.confirm(__("I have inspected all six scans, all required individual signatures, and customer-first then manager execution. This records evidence review, not an electronic signature."),

@@ -336,10 +336,13 @@ def create_deposit_payment_entry(loan_application):
 	application = frappe.get_doc("Loan Application", loan_application)
 	application.check_permission("write")
 	frappe.db.sql("SELECT name FROM `tabLoan Application` WHERE name = %s FOR UPDATE", (application.name,))
+	application.reload()  # Re-read the receipt link after acquiring the retry/concurrency lock.
 	if application.company != hp.COMPANY or application.applicant_type != "Customer":
 		frappe.throw("Deposit action is restricted to Flexi customer applications")
 	if not frappe.has_permission("Payment Entry", "create"):
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
+	if application.docstatus != 0 or application.get("workflow_state") not in ("Approved", "Contract Signing", "Awaiting Customer Signature"):
+		frappe.throw("Record deposits after approval and before compliance submission")
 	deposit = flt(application.get("custom_flexi_deposit_amount"))
 	if deposit <= 0:
 		frappe.throw(_("There is no deposit on this application."))

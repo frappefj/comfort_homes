@@ -56,6 +56,8 @@ window.flexi_add_document_buttons = function (frm) {
 frappe.ui.form.on("Loan Application", {
 	refresh(frm) {
 		if (frm.is_new()) return;
+        frm.clear_custom_buttons(__("Customer Documents"));
+        if (frm.doc.workflow_state !== "Contract Signing") return;
 		// Remove legacy signing and signed/blank-pack buttons before replacing
 		// them with the exact configured customer-document list.
 		frm.clear_custom_buttons(__("Customer Documents"));
@@ -65,39 +67,6 @@ frappe.ui.form.on("Loan Application", {
 			() => comfort_contract_pdf(frm, "comfort_homes.signed_pack.make_document_pack", __("Customer Documents")),
 			__("Customer Documents")
 		);
-	},
-});
-
-// Keep the deposit action with this confirmed Loan Application Desk asset.
-// The same per-form guard is used by the workflow-notes script, so it will
-// never add a duplicate action on sites that load both scripts.
-frappe.ui.form.on("Loan Application", {
-	refresh(frm) {
-		if (frm.is_new()) return;
-		if (!["Approved", "Contract Signing", "Awaiting Customer Signature"].includes(frm.doc.workflow_state)) return;
-		if (frm.__comfortDepositInvoiceActionV2Registered) return;
-
-		const addButton = () => {
-			frm.add_custom_button(__("Record Deposit Payment"), () => {
-				frappe.call({
-					method: "comfort_homes.api.create_deposit_payment_entry",
-					args: { loan_application: frm.doc.name },
-					freeze: true,
-					freeze_message: __("Creating draft deposit payment..."),
-					callback(response) {
-						if (response.message?.name) frappe.set_route("Form", "Payment Entry", response.message.name);
-					},
-				});
-			});
-			frm.__comfortDepositInvoiceActionV2Registered = true;
-		};
-
-		const invoice = frm.doc.custom_hp_deposit_payment_entry;
-		if (!invoice) return addButton();
-		frappe.db.get_value("Payment Entry", invoice, "docstatus").then((result) => {
-			const status = result?.message?.docstatus;
-			if (status === 2 || status === null || status === undefined) addButton();
-		});
 	},
 });
 

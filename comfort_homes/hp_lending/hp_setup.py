@@ -28,6 +28,9 @@ def _by_number(number):
 def _plan():
 	"""What would be created or changed.  Reads only."""
 	plan = [f"Create role {r}" for r in WORKFLOW_ROLES if not frappe.db.exists("Role", r)]
+	for dt, name in (("Supplier Group", "Distributor"), ("Item Group", "Products")):
+		if not frappe.db.exists(dt, name):
+			plan.append("Create " + dt + " " + name)
 	if not frappe.db.exists("Supplier", s.CHD_SUPPLIER):
 		plan.append("Create Supplier " + s.CHD_SUPPLIER)
 	if not frappe.db.exists("Item", s.HP_ITEM_CODE):
@@ -89,11 +92,21 @@ def _company():
 	company.save(ignore_permissions=True)
 
 
+def _ensure_group(doctype, name, name_field, parent_field, parent):
+	if frappe.db.exists(doctype, name):
+		return name
+	if not frappe.db.exists(doctype, parent):
+		frappe.throw("Configure the native root group " + parent + " before setup")
+	frappe.get_doc({"doctype": doctype, name_field: name,
+		parent_field: parent, "is_group": 0}).insert(ignore_permissions=True)
+	return name
+
+
 def _supplier():
+	group = _ensure_group("Supplier Group", "Distributor", "supplier_group_name", "parent_supplier_group", "All Supplier Groups")
 	if frappe.db.exists("Supplier", s.CHD_SUPPLIER):
-		_update_existing_mapping("Supplier", s.CHD_SUPPLIER, "accounts", "account", _acc("ACC_CHD_PAYABLE"), {"default_currency": "FJD"})
+		_update_existing_mapping("Supplier", s.CHD_SUPPLIER, "accounts", "account", _acc("ACC_CHD_PAYABLE"), {"default_currency": "FJD", "supplier_group": group, "supplier_type": "Company"})
 		return
-	group = frappe.db.get_value("Supplier Group", {"is_group": 0}, "name") or "All Supplier Groups"
 	supplier = frappe.get_doc({
 		"doctype": "Supplier",
 		"supplier_name": s.CHD_SUPPLIER,
@@ -106,10 +119,10 @@ def _supplier():
 
 
 def _item():
+	group = _ensure_group("Item Group", "Products", "item_group_name", "parent_item_group", "All Item Groups")
 	if frappe.db.exists("Item", s.HP_ITEM_CODE):
-		_update_existing_mapping("Item", s.HP_ITEM_CODE, "item_defaults", "expense_account", _acc("ACC_CLEARING"), {"is_stock_item": 0, "is_sales_item": 0, "is_purchase_item": 1})
+		_update_existing_mapping("Item", s.HP_ITEM_CODE, "item_defaults", "expense_account", _acc("ACC_CLEARING"), {"is_stock_item": 0, "is_sales_item": 0, "is_purchase_item": 1, "item_group": group, "stock_uom": "Unit"})
 		return
-	group = frappe.db.get_value("Item Group", {"is_group": 0}, "name") or "All Item Groups"
 	item = frappe.get_doc({
 		"doctype": "Item",
 		"item_code": s.HP_ITEM_CODE,
@@ -211,6 +224,9 @@ def field_diffs():
 		before = rows[0].get(field) if len(rows) == 1 else None
 		if before != target or len(rows) > 1:
 			diffs.append({"doctype": dt, "name": name, "field": table + "." + field, "before": before, "after": target, "matching_rows": len(rows)})
+		for f, value in ({"supplier_group": "Distributor", "supplier_type": "Company"} if dt == "Supplier" else {"item_group": "Products", "stock_uom": "Unit"}).items():
+			if doc and doc.get(f) != value:
+				diffs.append({"doctype": dt, "name": name, "field": f, "before": doc.get(f), "after": value})
 		if doc and dt == "Item":
 			for f, value in (("is_stock_item", 0), ("is_sales_item", 0), ("is_purchase_item", 1)):
 				if doc.get(f) != value:
