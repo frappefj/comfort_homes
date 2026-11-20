@@ -770,6 +770,10 @@ function flexiSafeNumber(value) {
 		"Number(row.frequency_per_month || 1)": "flexiSafeNumber(row.frequency_per_month || 1)",
 		"Number(row.quantity || 0)": "flexiSafeNumber(row.quantity)",
 		"Number(row.unit_price || 0)": "flexiSafeNumber(row.unit_price)",
+		# Grid change handlers read the already-formatted cell ("1,000.00" once Frappe reformats it),
+		# and Number("1,000.00") is NaN: this is why amounts of 1,000 or more showed NaN.
+		"Number(input.value || 0)": "flexiSafeNumber(input.value)",
+		"Number(event.target.value || 0)": "flexiSafeNumber(event.target.value)",
 		"Number(frappe.web_form.get_value(\"custom_flexi_documentation_fee\") || 25)": "flexiSafeNumber(frappe.web_form.get_value(\"custom_flexi_documentation_fee\") || 25)",
 		"Number(frappe.web_form.get_value(\"custom_flexi_admin_fee_rate\") || 2.5)": "flexiSafeNumber(frappe.web_form.get_value(\"custom_flexi_admin_fee_rate\") || 2.5)",
 		"Number(frappe.web_form.get_value(\"custom_flexi_stamp_duty_fee\") || 0)": "flexiSafeNumber(frappe.web_form.get_value(\"custom_flexi_stamp_duty_fee\") || 0)",

@@ -1,7 +1,7 @@
 {
-  "version": "0.0.7.dev9",
+  "version": "0.0.7.dev10",
   "upstream_baseline": "8452b8d65b0b94bbbbdf18e70711bb5ed7e089d6",
-  "working_branch": "fix/webform-submit-dev9",
+  "working_branch": "fix/intake-amounts-purpose-dev10",
   "purpose": "Complete source-only candidate; not deployed or native-ledger accepted",
   "files": {
     ".editorconfig": "166781bbf1b00bc87bcd6ceff068fcb83a97a1e98e3ec84dc5db311c676f6cb2",
@@ -11,8 +11,8 @@
     ".pre-commit-config.yaml": "1659d1afacbb8ee50dd0c392a7e48d22430509ebc7ebcaa78104e15c833e3bec",
     "README.md": "2fee41b2417239f20ace9de5891dd90dcfb657630bb9555b2204e3cb375045a6",
     "comfort_homes/.frappe": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "comfort_homes/CHANGELOG.md": "987c8e7666855adfc81ada3b4123696b2578408cdfd58b51336f79ff508f10cd",
-    "comfort_homes/__init__.py": "8382ced1a485aa26cde17feb4873e730b5ab3cab52c6a2383d30fbc8e49f9f2a",
+    "comfort_homes/CHANGELOG.md": "a098fd2789e96856912b274226ee290df77633d28e15f6365a6d296efe832f42",
+    "comfort_homes/__init__.py": "33a5197ae5da1989dcd2b59816251559393096225b00d4175a583bc0ff7d6b1e",
     "comfort_homes/agreement_signing.py": "884652a93dfacf69ba4278d4d3f9da8707ecf244ed84b9a6629f55482d5e5e49",
     "comfort_homes/api.py": "cf1ca5d916485d0c0312495a9db62a24ea299cba428ee158514711e0a1d5d5ff",
     "comfort_homes/co_applicant.py": "1fcb8b53a1071315d33fa04027a43f92405cb17d0ac2027b7e4a7a33d3e1cae5",
@@ -39,11 +39,11 @@
     "comfort_homes/fixtures/print_format.json": "53e1d541c1145de1d7d8a88c62260a985f724d20323846a8765ff6ec19edae20",
     "comfort_homes/fixtures/property_setter.json": "086e8b7a31542a8dc86cc4ab09a6c11dd965d6f8c1ec9441be6e944dba99b19a",
     "comfort_homes/fixtures/server_script.json": "080b0fee834ec8e0edf82afb2f1e7fa8ce1cf5e4fe65bbf3c65dcf6335b39a17",
-    "comfort_homes/fixtures/web_form.json": "4544307a799bf592749746ada2c26b35784a90a2d2e29db21b8b7a5769ce5632",
+    "comfort_homes/fixtures/web_form.json": "08efc5e7cfe7e56e2076bb985fdc11b32cb20c9567b38a97cf25fc7c353c710d",
     "comfort_homes/fixtures/workflow.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
     "comfort_homes/fixtures/workflow_transition_tasks.json": "11bb9bdb40b792440b4595e89a9bc8fefc4042ea8997dfd180570530d49fc067",
     "comfort_homes/fixtures/zz_workflow.json": "97348d90929aa64954b8b4072e03bc3f01388bbf685f07fc0af49a6a20bf044e",
-    "comfort_homes/hooks.py": "172c89a96a0f8dac4319149e60a34292b059dfa5618bbc507efa083211881306",
+    "comfort_homes/hooks.py": "a63f1f599f14f0ee97aa28b04b3478c6caa8081259a2664bd6113da6f3129ba0",
     "comfort_homes/hp_lending/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "comfort_homes/hp_lending/document_policy.py": "f8f8f975458749e630008aa3ccae5f9a56f267dd464e547dd803d6836513b476",
     "comfort_homes/hp_lending/hp_controls.py": "5e1d03c48fc1b6e2701609746885e9419a46572409cbb84b19f0d7703125c92d",
@@ -65,7 +65,7 @@
     "comfort_homes/loan_application_workflow.py": "70c2da9ea1f9f976bd02c4ead04c846c3a3f5b9a81628088c66092e63a736fbe",
     "comfort_homes/loan_mapping.py": "bfa99d7bf04f1eadce2b43fc6e6e7e4422c844832a4dda7ee1b6314297995d98",
     "comfort_homes/modules.txt": "df681b8e5b2ec4f2608034a57ca0a0724f4728e7d33cc4e1e917e41cd39332da",
-    "comfort_homes/origination.py": "45955478ca6a48a1c0a9ad3aa458ac4cd76c2880ab5d66a41240bc8e50f777d3",
+    "comfort_homes/origination.py": "190486344906fd56da3ba6bbe47526f6911fbf7482dfc562204bfa7321f47b9d",
     "comfort_homes/patches.txt": "9f7d01f94f7ac7631e1f081085750bfd95b5d1df11039a8e438b582feb096195",
     "comfort_homes/patches/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "comfort_homes/patches/comfort_homes_fix.patch": "6a3772974703b02efc984383168e5df5ecbe628f64889c09611c485c0934242d",
@@ -133,7 +133,7 @@
     "comfort_homes/tests/test_origination_wiring.py": "d01a65b4e7f8e536925bba7889def0e9af70af6bb207f32472da8eb8460dbfe4",
     "comfort_homes/tests/test_setup_data.py": "abb99e8c1e327708101297aa547fb2c0b36390429a55fdf1249f14a043e458ef",
     "comfort_homes/tests/webform_submit_harness.html": "578d3de74b109c08ab2dae4f11db91495cb38f03dbca5d3efb3f2168b4bad1e4",
-    "comfort_homes/webform_setup.py": "f9f928873dd48eebc433ee1c10a6a811540e6d6d7d7800b1d7b05d37dc62fa73",
+    "comfort_homes/webform_setup.py": "cfa8f15701bf1d45eddfbeae34fb9542ad505824e647f7a4df556af80bca5502",
     "docs/BUILD_DEV8.log": "b2b6763c165819b7520b345bd7f4dd1477217cd2fc8742b3513fd08260403ff9",
     "docs/BUILD_SPEC.md": "acfc07c64c5cb2c8e3c4a9732dac04a6edf484a2a9170e9371a531ec1dbdddcc",
     "docs/CONSOLIDATED_REWORK_DEV7.md": "b80089de3967fc67eb67a2b305e246de260a1f945a9c0001ed36f75d7c6b912d",
@@ -147,6 +147,7 @@
     "pyproject.toml": "ff9d5daff16681ea961b81670abc9cfe0a1ac5633e7f1c1b628f0754a7bb4e36",
     "tools/check_source_assets.py": "7e19312beabf2046da464866159b530fe41b64d3a4747b62c28c9199d3728c1f",
     "tools/run_local_browser_regressions.py": "e1bd833954d561f9f7e5e352a92d4b4a2f4ccd8235a026d910666e3be8381990",
-    "tools/verify_release.py": "a6b8c035c8bbf7b42a439a46b57439543833a05f75055f1b8ddb040b12ef8833"
+    "tools/verify_release.py": "a6b8c035c8bbf7b42a439a46b57439543833a05f75055f1b8ddb040b12ef8833",
+    "comfort_homes/tests/test_dev10_intake.py": "59a321c212f7fa1ea53d37b579fec15cf5b669d2d25c27bae664b8f4a4403154"
   }
 }

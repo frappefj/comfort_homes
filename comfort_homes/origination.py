@@ -98,6 +98,28 @@ def _restore_submitted_summary(doc):
         _set(doc, field, value)
 
 
+HIRE_PURCHASE_PURPOSE = "Hire Purchase"
+_PURPOSE_ALIASES = {"hp", "h.p.", "h/p", "hire purchase", "hire-purchase", "hirepurchase"}
+
+
+def resolve_loan_purpose(doc, method=None):
+    """A typed purpose such as "HP" is not a Loan Purpose record, which made the public
+    submission fail with "Could not find Loan Purpose: HP". Map the known HP spellings to the
+    single "Hire Purchase" master (created only if missing); any other unknown value is left
+    for Frappe's normal link validation so genuine mistakes are still reported."""
+    if doc.docstatus == 1 and not doc.is_new():
+        return
+    value = (doc.get("loan_purpose") or "").strip()
+    if not value or frappe.db.exists("Loan Purpose", value):
+        return
+    if value.lower() not in _PURPOSE_ALIASES:
+        return
+    if not frappe.db.exists("Loan Purpose", HIRE_PURCHASE_PURPOSE):
+        frappe.get_doc({"doctype": "Loan Purpose", "loan_purpose": HIRE_PURCHASE_PURPOSE}).insert(
+            ignore_permissions=True)
+    doc.set("loan_purpose", HIRE_PURCHASE_PURPOSE)
+
+
 def apply_application(doc, method=None):
     """Prepare native validation inputs, then finalise the same approved figures."""
     if doc.docstatus == 1 and not doc.is_new():

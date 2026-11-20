@@ -1,5 +1,10 @@
 # Comfort Homes — Changelog
 
+## 0.0.7.dev10 — four-digit amounts, Loan Purpose "HP"
+
+- Grid amounts of 1,000 or more no longer turn into NaN. Cause: two legacy grid handlers (income/expense/obligation and purchase-item grids) did `Number(cell.value)` on the cell after Frappe reformatted it to "1,000.00". The migrate-time repair now rewrites both to `flexiSafeNumber`, and the fixture script is corrected.
+- "Could not find Loan Purpose: HP": `HP`/`Hire Purchase` typed in Loan Purpose now resolves to a single "Hire Purchase" master (created only if missing) before link validation. Other unknown values are still rejected normally.
+
 ## 0.0.7.dev9 — public submit: every click gets a visible answer
 
 - Submit and Next buttons are never disabled and never get Bootstrap's `disabled` class (it ignores clicks silently). A click while checking, saving or after saving now shows a message instead of nothing.
