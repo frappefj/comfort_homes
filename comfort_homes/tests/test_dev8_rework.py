@@ -26,7 +26,7 @@ def test_full_generated_webform_is_idempotent_and_single_submit_owner():
     script=json.loads((ROOT/'fixtures/web_form.json').read_text())[0]['client_script']
     upgrade=functions(['_upgrade_dev8_script'],{})['_upgrade_dev8_script']
     assert upgrade(script)==script
-    assert script.count('/* comfort_homes: unified submit coordinator dev8 */')==1
+    assert script.count('/* comfort_homes: unified submit coordinator dev9 */')==1
     assert 'button.click();' not in script
     assert script.count('function bindFieldChecks(')==1
     assert script.count('function bindImmediateInputChecks(')==1

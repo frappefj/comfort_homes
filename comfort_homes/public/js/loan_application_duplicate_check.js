@@ -28,11 +28,14 @@
 	}
 
 	function updateProgressAccess() {
+		// Never disable these buttons or add Bootstrap's "disabled" class (it ignores clicks
+		// silently). The click guard below answers every blocked click with a visible message.
 		const blocked = duplicateFound;
 		document.querySelectorAll(".btn-next, .submit-btn").forEach((button) => {
-			button.disabled = blocked || ["checking", "saving", "saved", "uncertain"].includes(window.flexiSubmit?.phase?.());
+			button.disabled = false;
+			button.removeAttribute("disabled");
+			button.classList.remove("disabled");
 			button.setAttribute("aria-disabled", blocked ? "true" : "false");
-			button.classList.toggle("disabled", blocked);
 		});
 	}
 
@@ -120,6 +123,17 @@
 		// Capturing listeners work even if another Web Form script fails later.
 		document.addEventListener("input", changed, true);
 		document.addEventListener("change", changed, true);
+		document.addEventListener("click", (event) => {
+			if (!duplicateFound || !isLoanApplicationWebForm()) return;
+			if (!event.target?.closest?.(".btn-next, .submit-btn")) return;
+			event.preventDefault();
+			event.stopImmediatePropagation();
+			frappe.msgprint({
+				title: __("Existing customer"),
+				message: duplicateMessage(),
+				indicator: "orange",
+			});
+		}, true);
 	}
 
 	function initialiseWhenReady() {

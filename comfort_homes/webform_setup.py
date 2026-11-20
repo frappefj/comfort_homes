@@ -842,9 +842,12 @@ def _upgrade_dev8_script(script):
     script = re.sub(r'( *if \(row.doctype && row.name\) frappe.model.set_value\([^\n]+\);\n)(?: *if \(row.doctype && row.name\) frappe.model.set_value\([^\n]+\);\n)+', r'\1', script)
     script = replace_function(script, "refreshAddressDropdowns", 'async function refreshAddressDropdowns() {\n    const request = async (fieldname, level, parent) => {\n        const field = frappe.web_form.fields_dict[fieldname];\n        if (!field) return;\n        const sequence = (field.__flexiLocationSequence || 0) + 1;\n        field.__flexiLocationSequence = sequence;\n        const response = await frappe.call({method:"comfort_homes.hp_lending.hp_intake.locations",args:{level,parent}});\n        if (field.__flexiLocationSequence !== sequence) return;\n        if (typeof field.set_data !== "function") throw new Error("Native address control is unavailable; contact staff.");\n        field.set_data(response.message || []);\n        field.__flexiLocationRows = response.message || [];\n    };\n    await Promise.all([\n        request("custom_province","Province",null),\n        request("custom_new_city","City",frappe.web_form.get_value("custom_province")),\n        request("custom_suburb","Suburb",frappe.web_form.get_value("custom_new_city"))\n    ]);\n}')
     script = replace_function(script, "syncStandardAddressFields", 'function syncStandardAddressFields() {\n    for (const [source, target] of [["custom_new_city","city"],["custom_province","state"]]) {\n        const field=frappe.web_form.fields_dict[source], value=frappe.web_form.get_value(source);\n        const label=(field?.__flexiLocationRows || []).find(row=>row.value===value)?.label || "";\n        if (label && frappe.web_form.get_value(target)!==label) frappe.web_form.set_value(target,label);\n    }\n}')
-    script = script.replace("button.disabled = blocked;", 'button.disabled = blocked || ["checking", "saving", "saved", "uncertain"].includes(window.flexiSubmit?.phase?.());')
-    marker = "/* comfort_homes: unified submit coordinator dev8 */"
-    if marker in script:
-        script = script[:script.index(marker)].rstrip()
+    # The duplicate-check block no longer disables buttons (a disabled button ignores clicks silently).
+    marker = "/* comfort_homes: unified submit coordinator dev9 */"
+    previous = "/* comfort_homes: unified submit coordinator dev8 */"
+    # Cut from the earliest coordinator marker so an upgraded site never keeps two coordinators.
+    found = [script.index(m) for m in (previous, marker) if m in script]
+    if found:
+        script = script[:min(found)].rstrip()
     script += "\n\n" + marker + "\n" + (Path(__file__).parent / "public/js/hp_webform_submit.js").read_text()
     return script

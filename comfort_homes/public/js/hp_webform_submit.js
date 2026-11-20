@@ -10,12 +10,29 @@
     function notice(message) {
         frappe.msgprint({title: __("Application submission"), message: __(message), indicator: "orange"});
     }
+    // A visible, non-blocking progress message so a click is never met with silence.
+    function progress(message) {
+        if (typeof frappe.show_alert === "function") frappe.show_alert({message: __(message), indicator: "blue"}, 6);
+        else notice(message);
+    }
+    // Never disable the button (a disabled button swallows clicks silently): mark it busy and
+    // let submit() answer every click with a visible message instead.
     function status(value) {
         phase = value;
+        const busy = ["checking", "saving"].includes(value);
         document.querySelectorAll(".submit-btn").forEach(b => {
-            b.disabled = !["idle", "rejected"].includes(value);
-            b.setAttribute("aria-busy", ["checking", "saving"].includes(value) ? "true" : "false");
+            b.disabled = false;
+            b.removeAttribute("disabled");
+            b.setAttribute("aria-busy", busy ? "true" : "false");
+            b.classList.toggle("flexi-busy", busy);
         });
+    }
+    function withTimeout(promise, ms, message) {
+        let timeout;
+        return Promise.race([
+            Promise.resolve(promise),
+            new Promise((_resolve, reject) => { timeout = window.setTimeout(() => reject(new Error(message)), ms); })
+        ]).finally(() => window.clearTimeout(timeout));
     }
     function rows(form, name) { return form.fields_dict[name]?.grid?.get_data() || form.get_value(name) || []; }
     function replaceRows(form, name, values) {
@@ -67,21 +84,28 @@
     async function submit(form) {
         if (!["idle", "rejected"].includes(phase)) {
             if (phase === "uncertain") notice("The previous save result is uncertain. Keep your data here and ask staff to check whether it saved before retrying.");
+            else if (phase === "saved") notice("This application has already been sent. Do not submit it again. If you cannot see a confirmation, ask staff to check.");
+            else progress("Your application is still being checked and sent. Please wait.");
             return false;
         }
         status("checking");
+        progress("Checking your application…");
         try {
-            await prepare(form);
+            await withTimeout(prepare(form), 20000, "Checking your application took too long. Nothing was sent; please try again.");
             const value = key => text(form.get_value(key));
             const identity = [value("custom_tin_number"),value("applicant_email_address")];
             const checkedRevision = revision;
-            const response = await frappe.call({method:"comfort_homes.api.check_existing_customer", args:{tin_number:identity[0],email:identity[1]}});
+            const response = await withTimeout(
+                frappe.call({method:"comfort_homes.api.check_existing_customer", args:{tin_number:identity[0],email:identity[1]}}),
+                20000, "Could not verify duplicate details in time. Your application has not been sent; please try again.");
             if (!response || response.exc || !response.message || typeof response.message.exists === "undefined") fail("Could not verify duplicate details. Your application has not been sent; please retry.");
             if (checkedRevision !== revision || identity[0] !== value("custom_tin_number") || identity[1] !== value("applicant_email_address"))
                 fail("Your application changed during validation. Review it and submit again.");
             if (response.message.exists) fail("A matching customer or co-applicant already exists. Please contact staff; no new application was sent.");
             flexiValidateFinalFields();
+            if (window.saving) fail("A previous save is still in progress. Please wait a moment and try again.");
             status("saving");
+            progress("Sending your application…");
             // Native save returns false both on early validation failure and after starting XHR.
             form.__flexiNativeSave.call(form);
             if (phase === "saving" && !window.saving) {
@@ -93,8 +117,13 @@
                 }, 60000);
             }
         } catch (error) {
-            if (phase !== "saving") { status("rejected"); notice(error.message || "Validation failed. Your entries are retained; please retry."); }
-            else { status("uncertain"); notice("A save error occurred. Staff must check whether it saved before retrying. Keep this page open."); }
+            window.clearTimeout(timer);
+            const alreadyShown = error?.message === "Complete the required fields before submitting."; // validator listed them itself
+            if (phase !== "saving" || !window.saving) {
+                // No save request is in flight, so nothing was sent and a retry is safe.
+                status("rejected");
+                if (!alreadyShown) notice(error?.message || "Validation failed. Your entries are retained; please retry.");
+            } else { status("uncertain"); notice("A save error occurred. Staff must check whether it saved before retrying. Keep this page open."); }
         }
         return false;
     }

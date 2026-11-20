@@ -1,5 +1,15 @@
 # Comfort Homes — Changelog
 
+## 0.0.7.dev9 — public submit: every click gets a visible answer
+
+- Submit and Next buttons are never disabled and never get Bootstrap's `disabled` class (it ignores clicks silently). A click while checking, saving or after saving now shows a message instead of nothing.
+- Duplicate-customer block is a visible click guard, not a dead button.
+- Duplicate lookup and pre-save checks time out after 20 s with a message; the form stays editable and retry is allowed.
+- A stuck native `window.saving` flag now gives a message and a safe retry. A failure before any request starts is treated as safe to retry rather than "uncertain".
+- Required-field errors show once (no second dialog).
+- Coordinator marker is now `dev9`; the managed-script upgrade cuts from either `dev8` or `dev9`, so an upgraded site never has two coordinators.
+- Local Chromium regressions (synthetic native-save model) added; not Frappe site acceptance. Nothing deployed.
+
 ## 0.0.7.dev8 — source-only reliability and independent-fee candidate
 
 - Single native-save submit coordinator, no recursive clicks, explicit failure/uncertain retry states; grid ownership and zero-price row preservation.
