@@ -32,6 +32,7 @@ extend_doctype_class = {
 }
 
 override_doctype_dashboards = {
+	"Loan": "comfort_homes.loan_mapping.get_loan_dashboard_data",
 	"Loan Application": "comfort_homes.loan_mapping.get_loan_application_dashboard_data",
 }
 # Dependent setup belongs after fixture import, not after_install: Frappe 16

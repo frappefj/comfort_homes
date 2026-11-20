@@ -68,7 +68,17 @@
             if (kept.length !== all.length) replaceRows(form, name, kept);
         }
     }
+    // Frappe's get_values() calls refresh_input() on every required control. Section/Page breaks and
+    // similar layout controls have none, so a mandatory_depends_on on one of them (for example the
+    // Spouse Details section when Married) threw "a.refresh_input is not a function" and blocked
+    // submission. Give every control a harmless no-op so a layout rule can never stop a save.
+    function guardRefreshInput(form) {
+        Object.values(form?.fields_dict || {}).forEach(control => {
+            if (control && typeof control.refresh_input !== "function") control.refresh_input = () => {};
+        });
+    }
     async function prepare(form) {
+        guardRefreshInput(form);
         document.activeElement?.blur?.();
         await new Promise(resolve => window.setTimeout(resolve, 0));
         if (Object.values(form.fields_dict).some(f => f.uploading || f.file_upload?.uploading))
@@ -136,6 +146,7 @@
         const form = window.frappe?.web_form;
         if (!location.pathname.startsWith("/loan-application") || !form?.save || form.__flexiNativeSave) return;
         currentForm = form;
+        guardRefreshInput(form);
         form.__flexiNativeSave = form.save;
         form.save = () => { void submit(form); return false; };
         const nativeSuccess = form.handle_success;
@@ -175,6 +186,6 @@
         install();
     }
     // Expose pure helpers for executable regression tests; no persistence or API bypass.
-    window.flexiSubmit = {cleanup, replaceRows, submit, phase:() => phase};
+    window.flexiSubmit = {cleanup, replaceRows, submit, guardRefreshInput, phase:() => phase};
     ready();
 })();

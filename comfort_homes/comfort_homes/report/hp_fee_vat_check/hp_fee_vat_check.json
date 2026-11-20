@@ -1,0 +1,22 @@
+{
+  "doctype": "Report",
+  "name": "HP Fee VAT Check",
+  "report_name": "HP Fee VAT Check",
+  "ref_doctype": "Sales Invoice",
+  "report_type": "Script Report",
+  "is_standard": "Yes",
+  "module": "Comfort Homes",
+  "disabled": 0,
+  "add_total_row": 0,
+  "roles": [
+    {
+      "role": "Director"
+    },
+    {
+      "role": "Finance Manager"
+    },
+    {
+      "role": "Accounts Officer"
+    }
+  ]
+}

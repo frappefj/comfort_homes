@@ -1,5 +1,22 @@
 # Comfort Homes — Changelog
 
+## 0.0.7.dev12 — HP GL Trace, spouse rules, Loan Purpose off
+
+- New read-only report **HP GL Trace** (Director, Finance Manager, Accounts Officer): every GL line behind a loan or application, customer and supplier side (deposit receipt, disbursement, gross-booking journal, demands, accruals, repayments, adjustments, write-off, fee invoices and their receipts, CHD purchase invoice and its payment). Filters: Loan, Application, Since (date/time), voucher type, account, include supplier side. Views: Lines, By account, By voucher. Check column flags an unbalanced voucher or a Sales Invoice with no VAT line.
+- Fix: submitting as Married failed with "a.refresh_input is not a function". The mandatory rule sat on the Spouse Details section break. It is removed (also repaired on migrate) and the form script now gives any layout control a no-op `refresh_input`.
+- Spouse Details still shows only when Married; spouse first name, surname, mobile, employer and employer contact are mandatory then.
+- New read-only report **HP Fee VAT Check** (Director, Finance Manager, Accounts Officer): every submitted SMS / Call / Field Visit invoice with the VAT it booked, the VAT-inclusive 12.5% split it should have (2.50 = 2.22 + 0.28; 25.00 = 22.22 + 2.78, same method as the documentation fee), the route (Independent / Legacy) and a one-word status (OK, No VAT, Account, Check). Read-only: it corrects nothing.
+- Servicing fees (VAT-inclusive, split revenue/VAT): the independent fee route already posts Dr 1120 / Cr income / Cr 2310 correctly and blocks any fee invoice that is not on that route. devcom's SINV-00001 (7.50) and SINV-00002 (25.00) were raised on the older Loan-linked route with no tax row; they stay untouched and are listed by the check. Turn the route on with Company > Independent fees enabled.
+- Loan Connections now show servicing-fee invoices: Sales Invoice has its own "Servicing fees" group, found through the reference Loan field (the native Loan field is not used, so balances and schedule are untouched). Legacy invoices linked through the native Loan field are no longer listed there; HP GL Trace and HP Fee VAT Check still show them.
+- Loan Purpose is hidden and not mandatory (HP-only). The dev10 "HP" resolver stays in case a value is ever sent.
+
+## 0.0.7.dev11 — Portfolio Control (Director/Manager snapshot)
+
+- New read-only report **Portfolio Control**: one line per application/loan, traffic light, worst first. Filters: Location, Stage, Light, Bucket, show closed/rejected. Short one-word columns: Light, Stage, Bucket (Current/Grace/D30/D60/D90/NPA), PI (None/Open/Part/Paid), Deliv (No/Pending/Yes).
+- Light: Closed green; active loan current green, in 7-day grace orange, 8+ days red; any earlier stage red when nothing has happened for more than 72 h, otherwise orange. Delivery is taken from the workflow state "Delivered - Awaiting Documents" (Confirm Delivery).
+- New workspace **Portfolio Control** with five number cards. Report, workspace and cards are limited to Director, Finance Manager and Loan Manager (checked again on the server).
+- Set-based queries (no per-loan lookups). No ledger or status writes. Not site-tested.
+
 ## 0.0.7.dev10 — four-digit amounts, Loan Purpose "HP"
 
 - Grid amounts of 1,000 or more no longer turn into NaN. Cause: two legacy grid handlers (income/expense/obligation and purchase-item grids) did `Number(cell.value)` on the cell after Frappe reformatted it to "1,000.00". The migrate-time repair now rewrites both to `flexiSafeNumber`, and the fixture script is corrected.

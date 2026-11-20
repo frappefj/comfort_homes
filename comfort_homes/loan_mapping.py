@@ -257,6 +257,24 @@ def apply_purchase_invoice_loan_application(doc, method=None):
 		doc.custom_loan_application = applications.pop()
 
 
+def get_loan_dashboard_data(data=None):
+	"""Show servicing-fee invoices under the Loan's Connections.
+
+	Independent fee invoices carry the Loan only in a reference field (custom_hp_reference_loan): the native
+	Sales Invoice Loan field would make Lending treat the fee as a loan charge. Frappe takes one link field
+	per doctype, so Sales Invoice moves from the native Accounting group to its own Servicing fees group and
+	is found through the reference field. Display only; nothing here touches balances or the schedule."""
+	data = frappe._dict(data or {})
+	transactions = data.setdefault("transactions", [])
+	for group in transactions:
+		if group.get("label") == "Accounting":
+			group["items"] = [item for item in group.get("items", []) if item != "Sales Invoice"]
+	if not any("Sales Invoice" in group.get("items", []) for group in transactions):
+		transactions.append({"label": "Servicing fees", "items": ["Sales Invoice"]})
+	data.setdefault("non_standard_fieldnames", {})["Sales Invoice"] = "custom_hp_reference_loan"
+	return data
+
+
 def get_loan_application_dashboard_data(data=None):
 	"""Add app-owned related-document links to Loan Application Connections."""
 	data = frappe._dict(data or {})

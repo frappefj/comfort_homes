@@ -624,6 +624,33 @@ def _restore_public_table_currency_fields(web_form):
 				field.label = columns[field.fieldname]
 
 
+SPOUSE_SECTION = "custom_flexi_spouse_section"
+SPOUSE_REQUIRED_WHEN_MARRIED = (
+	"custom_flexi_spouse_first_name", "custom_flexi_spouse_surname", "custom_flexi_spouse_mobile",
+	"custom_flexi_spouse_employer", "custom_flexi_spouse_employer_contact",
+)
+MARRIED_RULE = 'eval:doc.custom_flexi_marital_status == "Married";'
+
+
+def _apply_dev12_field_rules(web_form):
+	"""Spouse section shows when Married; spouse name, contact, employer and employer contact are then
+	mandatory on those fields. The mandatory rule must never sit on the Section Break itself: Frappe
+	marks it required and then fails with "refresh_input is not a function". Loan Purpose is hidden
+	and optional (HP-only business); it can be switched back on if offerings expand."""
+	for field in web_form.get("web_form_fields") or []:
+		name = field.fieldname
+		if name == SPOUSE_SECTION:
+			field.depends_on = MARRIED_RULE
+			field.mandatory_depends_on = ""
+			field.reqd = 0
+		elif name in SPOUSE_REQUIRED_WHEN_MARRIED:
+			field.mandatory_depends_on = MARRIED_RULE
+			field.reqd = 0
+		elif name == "loan_purpose":
+			field.hidden = 1
+			field.reqd = 0
+
+
 def _ensure_employment_fields(web_form):
 	"""Expose existing employment fields in a useful order on the public form."""
 	fields = web_form.get("web_form_fields") or []
@@ -681,6 +708,7 @@ def inject_loan_application_duplicate_check():
 		_configure_branch_location_field(web_form)
 		_restore_public_table_currency_fields(web_form)
 		_ensure_employment_fields(web_form)
+		_apply_dev12_field_rules(web_form)
 		current_script = _strip_legacy_calculation_injections(_repair_legacy_number_parsing(web_form.client_script or ""))
 		if MARKER in current_script:
 			# Refresh app-owned code while leaving the site's original Web Form
