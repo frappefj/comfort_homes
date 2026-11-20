@@ -14,7 +14,15 @@ def execute(filters=None):
     filters = frappe._dict(filters or {})
     columns = get_columns()
     data = get_data(filters)
-    return columns, data
+    from comfort_homes.hp_lending.hp_portfolio import fee_position
+    fees = fee_position(filters.loan) if filters.get("loan") else {}
+    balance = data[-1]["balance"] if data else 0
+    summary = [{"label":"Contractual Loan statement balance", "value":balance,"datatype":"Currency","currency":"FJD"}]
+    if fees.get("independent_fees") is not None:
+        summary += [{"label":"Independent service fee debt", "value":fees["independent_fees"],"datatype":"Currency","currency":"FJD"},
+            {"label":"Legacy fee exceptions — preserved", "value":fees["legacy_fee_exceptions"],"datatype":"Currency","currency":"FJD"},
+            {"label":"Recorded customer position (not payoff)", "value":round(balance+fees["independent_fees"]+fees["legacy_fee_exceptions"],2),"datatype":"Currency","currency":"FJD"}]
+    return columns, data, "Current contractual statement; independent invoice balances shown separately, never counted again as Loan Demands. Origination rows use actual gross-booking date, not application creation or invented historical GL.", None, summary
 
 
 def get_columns():
@@ -41,6 +49,9 @@ def get_data(filters):
 
     rows = []
     running_balance = 0
+    booking_date = frappe.db.get_value("Journal Entry", {"custom_hp_loan":loan_name,"custom_hp_entry_type":"Gross Booking Reclass","docstatus":1}, "posting_date")
+    if application and not booking_date:
+        frappe.throw("No submitted gross-booking journal: a contractual account statement is not yet available")
 
     # ── 1. Purchase items (from application) ──
     if application:
@@ -48,7 +59,7 @@ def get_data(filters):
             amount = flt(item.get("total_amount"), 2) if item.get("total_amount") is not None else round(flt(item.get("quantity", 1)) * flt(item.get("unit_price", 0)), 2)
             running_balance += amount
             rows.append({
-                "posting_date": application.get("creation"),
+                "posting_date": booking_date,
                 "description": f"Purchase: {item.get('product_description', 'HP Item')}",
                 "reference": application.name,
                 "charges": amount,
@@ -61,7 +72,7 @@ def get_data(filters):
         if admin_fee:
             running_balance += admin_fee
             rows.append({
-                "posting_date": application.get("creation"),
+                "posting_date": booking_date,
                 "description": "Administration Fee (2.5%)",
                 "reference": application.name,
                 "charges": admin_fee,
@@ -73,7 +84,7 @@ def get_data(filters):
         if doc_fee:
             running_balance += doc_fee
             rows.append({
-                "posting_date": application.get("creation"),
+                "posting_date": booking_date,
                 "description": "Documentation Fee",
                 "reference": application.name,
                 "charges": doc_fee,
@@ -85,7 +96,7 @@ def get_data(filters):
         if stamp_duty:
             running_balance += stamp_duty
             rows.append({
-                "posting_date": application.get("creation"),
+                "posting_date": booking_date,
                 "description": "Stamp Duty",
                 "reference": application.name,
                 "charges": stamp_duty,
@@ -98,7 +109,7 @@ def get_data(filters):
         if term_charges:
             running_balance += term_charges
             rows.append({
-                "posting_date": application.get("creation"),
+                "posting_date": booking_date,
                 "description": f"Interest ({flt(loan.get('custom_hp_contract_rate') or application.get('custom_flexi_interest_rate') or 22):g}% flat p.a. × {application.get('custom_flexi_term_months', 12)} months)",
                 "reference": application.name,
                 "charges": term_charges,

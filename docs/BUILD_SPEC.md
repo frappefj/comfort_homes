@@ -1,8 +1,8 @@
 # Flexi gross-HP correction candidate
 
-**Current version:** 0.0.7.dev7. **Status:** SOURCE CANDIDATE — NOT DEPLOYED OR LIVE-DISBURSEMENT ACCEPTED.
+**Current version:** 0.0.7.dev8. **Status:** SOURCE CANDIDATE — NOT DEPLOYED OR LIVE-DISBURSEMENT ACCEPTED.
 
-**Latest:** docs/CONSOLIDATED_REWORK_DEV7.md supersedes historical status statements below. Baseline main a1a5e7a1db7a43e0ffcea081f255d5825efbc8f1. No site deployment in this action.
+**Latest:** docs/CONSOLIDATED_REWORK_DEV8.md and docs/UPLOAD_AND_ACCEPTANCE_DEV8.md supersede historical status statements below. Current source baseline is pinned dev7 commit6bcb637df3f732c98195db37698339c61c6f2c6d. This dev8 action is source-only; no deployed dev8 or native financial acceptance claim. Baseline main a1a5e7a1db7a43e0ffcea081f255d5825efbc8f1. No site deployment in this action.
 Prepared against `rebuild/gross-hp` at `7884c54a5980c3354ffa0f153120452a6f2cb4fa`.
 Native reference versions: Frappe 16.56.0, ERPNext 16.55.0, Lending 16.8.1.
 
@@ -463,3 +463,8 @@ Assessment rendering now uses a separate document and checks saved evidence. Com
 Verified acceptance basis is unchanged:720.98 financed,158.62 charges,879.60 repayment balance,1049.60 gross,73.30x12,806.30 after one payment,145.40 deferred after13.22 release,42.71 month-six rebate. These are expected amounts and local regressions, not newly posted dev7 site entries. Existing devcom GL remains the two170 deposit receipts only at the investigation boundary.
 
 111-account source chart incorporates the user-approved1195 Expense/5200 change. Approved operational reference metadata is bundled outside fixtures; no automatic import/role assignment or financial posting occurs. Main workflow email flag stays0 for the test rollout; states15/transitions20 preserved except intentional LPO approval task bindings. Current role matrix is not applied or independently accepted.
+
+
+## 14. Consolidated dev8 intake, independent fees and rollout
+
+See CONSOLIDATED_REWORK_DEV8.md for all prior register IDs, implemented source corrections, native boundaries, tests and held decisions. Single-submit coordinator, actual grid ownership, native ID-based location controls, assessment-stage discovery, current-consent action visibility, explicit create-missing rollout, independent SI/PE fee guards disabled by default, native permission-checked LPO generation and thin manager/statement visibility are included. Four financial modules and scheduler hooks remain unchanged. No native source, site state, transactions or permissions were modified. Existing bad fee invoices remain preserved. Source suite/browser model/build evidence is not a passed devcom/Frappebench/nativehooks/PDF/role/ledger/freshinstall test. All later deployment/setup/native acceptance remains separately previewed and approved.

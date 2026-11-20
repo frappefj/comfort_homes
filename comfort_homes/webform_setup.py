@@ -705,7 +705,7 @@ def inject_loan_application_duplicate_check():
 			current_script = "\n\n".join([current_script, CALCULATION_SCRIPT.strip()])
 		if EMPLOYMENT_MARKER not in current_script:
 			current_script = "\n\n".join([current_script, EMPLOYMENT_SCRIPT.strip()])
-		web_form.client_script = current_script
+		web_form.client_script = _upgrade_dev8_script(current_script)
 		web_form.save(ignore_permissions=True)
 
 
@@ -803,3 +803,48 @@ def _strip_legacy_calculation_injections(script):
 				break
 			script = script[:start] + script[end + len("\n})();") :]
 	return script
+
+
+def _upgrade_dev8_script(script):
+    """Remove competing legacy handlers; unknown script shapes fail migration visibly."""
+    import re
+    def replace_function(text, name, replacement):
+        start = text.find("function " + name + "(")
+        if start < 0:
+            raise ValueError("Missing known Web Form function: " + name)
+        if text[max(0,start-6):start] == "async ": start -= 6
+        indent = text[text.rfind("\n", 0, start) + 1:start]
+        line_end=text.find("\n",start)
+        if text[start:line_end].rstrip().endswith("}"):
+            return text[:start] + replacement + text[line_end:]
+        match = re.search(r"\n" + re.escape(indent) + r"}\n", text[start:])
+        if not match:
+            raise ValueError("Unrecognised Web Form function: " + name)
+        end = start + match.end() - 1
+        return text[:start] + replacement + text[end:]
+    if "function flexiValidateFinalFields(" not in script:
+        start = script.index("function bindSubmitValidation()")
+        end = script.index("\n}\n", start) + 2
+        old = script[start:end]
+        first = old.index("        normalizeFijiPhoneFields();")
+        last = old.index("        const contacts = ")
+        validation = old[first:last]
+        validation = validation.replace("            event.preventDefault();\n", "").replace("            event.stopImmediatePropagation();\n", "")
+        validation = validation.replace("            return;", '            throw new Error("Complete the required fields before submitting.");')
+        script = script[:start] + "function flexiValidateFinalFields() {\n" + validation + "}\nfunction bindSubmitValidation() { /* Single submit coordinator owns submission. */ }" + script[end:]
+    if "function bindDuplicateCheck(" in script:
+        script = replace_function(script, "bindDuplicateCheck", 'function bindDuplicateCheck() { /* Single submit coordinator owns submission. */ }')
+    script = replace_function(script, "setTableRows", 'function setTableRows(fieldname, rows) {\n    const field = frappe.web_form.fields_dict[fieldname];\n    if (!field?.grid) return;\n    rows.forEach((row, index) => { row.idx = index + 1; });\n    if (field.grid.frm) field.grid.frm.doc[field.grid.df.fieldname] = rows;\n    else field.grid.df.data = rows;\n    field.df.data = rows;\n    field.grid.refresh();\n    frappe.web_form.make_form_dirty();\n}')
+    script = script.replace('field.df?.data?.[index]', 'field.grid?.get_data()?.[index]')
+    script = script.replace('field?.df?.data?.[index]', 'field?.grid?.get_data()?.[index]')
+    script = script.replace('field.df.data && field.df.data[rowIndex]', 'field.grid.get_data()[rowIndex]')
+    # Collapse mechanically repeated identical row writes, without changing calculation formulae.
+    script = re.sub(r'( *if \(row.doctype && row.name\) frappe.model.set_value\([^\n]+\);\n)(?: *if \(row.doctype && row.name\) frappe.model.set_value\([^\n]+\);\n)+', r'\1', script)
+    script = replace_function(script, "refreshAddressDropdowns", 'async function refreshAddressDropdowns() {\n    const request = async (fieldname, level, parent) => {\n        const field = frappe.web_form.fields_dict[fieldname];\n        if (!field) return;\n        const sequence = (field.__flexiLocationSequence || 0) + 1;\n        field.__flexiLocationSequence = sequence;\n        const response = await frappe.call({method:"comfort_homes.hp_lending.hp_intake.locations",args:{level,parent}});\n        if (field.__flexiLocationSequence !== sequence) return;\n        if (typeof field.set_data !== "function") throw new Error("Native address control is unavailable; contact staff.");\n        field.set_data(response.message || []);\n        field.__flexiLocationRows = response.message || [];\n    };\n    await Promise.all([\n        request("custom_province","Province",null),\n        request("custom_new_city","City",frappe.web_form.get_value("custom_province")),\n        request("custom_suburb","Suburb",frappe.web_form.get_value("custom_new_city"))\n    ]);\n}')
+    script = replace_function(script, "syncStandardAddressFields", 'function syncStandardAddressFields() {\n    for (const [source, target] of [["custom_new_city","city"],["custom_province","state"]]) {\n        const field=frappe.web_form.fields_dict[source], value=frappe.web_form.get_value(source);\n        const label=(field?.__flexiLocationRows || []).find(row=>row.value===value)?.label || "";\n        if (label && frappe.web_form.get_value(target)!==label) frappe.web_form.set_value(target,label);\n    }\n}')
+    script = script.replace("button.disabled = blocked;", 'button.disabled = blocked || ["checking", "saving", "saved", "uncertain"].includes(window.flexiSubmit?.phase?.());')
+    marker = "/* comfort_homes: unified submit coordinator dev8 */"
+    if marker in script:
+        script = script[:script.index(marker)].rstrip()
+    script += "\n\n" + marker + "\n" + (Path(__file__).parent / "public/js/hp_webform_submit.js").read_text()
+    return script

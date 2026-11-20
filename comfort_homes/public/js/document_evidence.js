@@ -81,7 +81,7 @@
         if (frm.is_new() || frm.doc.docstatus !== 0) return;
         const state = frm.doc.workflow_state || "Draft";
         // Keep intake and contract actions out of intermediate review/approval screens.
-        if (frm.doctype === "Loan Application" && !["Draft", "Contract Signing"].includes(state)) return;
+        if (frm.doctype === "Loan Application" && !["Draft", "Initiated", "Under Review", "Pending Approval", "Approved", "Contract Signing"].includes(state)) return;
         const group = __("Document Evidence");
         frm.add_custom_button(__("Generate Individual CIRA PDF"), () => {
             if (saved(frm)) call(frm, "generate_cira_pdf", {doctype: frm.doctype, name: frm.doc.name});
@@ -98,7 +98,6 @@
         }, group);
         if (frm.doc.workflow_state !== "Contract Signing") return;
         frm.add_custom_button(__("Record Combined Signed Pack"), () => recordCombinedPack(frm), group);
-        frm.add_custom_button(__("Record Wet-signed Scan"), () => recordScan(frm), __("Individual Forms (optional)"));
         if (isManager()) frm.add_custom_button(__("Verify Uploaded Contract Pack"), () => {
             if (!saved(frm)) return;
             frappe.confirm(__("I have inspected all six scans, all required individual signatures, and customer-first then manager execution. This records evidence review, not an electronic signature."),

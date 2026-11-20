@@ -30,7 +30,7 @@
 	function updateProgressAccess() {
 		const blocked = duplicateFound;
 		document.querySelectorAll(".btn-next, .submit-btn").forEach((button) => {
-			button.disabled = blocked;
+			button.disabled = blocked || ["checking", "saving", "saved", "uncertain"].includes(window.flexiSubmit?.phase?.());
 			button.setAttribute("aria-disabled", blocked ? "true" : "false");
 			button.classList.toggle("disabled", blocked);
 		});
@@ -72,46 +72,7 @@
 		return window.location.pathname.replace(/\/$/, "").startsWith("/loan-application") && window.frappe?.web_form;
 	}
 
-	function bindDuplicateCheck() {
-		if (!isLoanApplicationWebForm() || duplicateCheckBound) return;
-		const button = document.querySelector(".submit-btn");
-		if (!button) {
-			window.setTimeout(bindDuplicateCheck, 150);
-			return;
-		}
-		duplicateCheckBound = true;
-		button.addEventListener("click", (event) => {
-			if (submissionApproved) {
-				submissionApproved = false;
-				return;
-			}
-			if (checkingDuplicate) {
-				event.preventDefault();
-				event.stopImmediatePropagation();
-				return;
-			}
-
-			event.preventDefault();
-			event.stopImmediatePropagation();
-			checkingDuplicate = true;
-			checkExistingCustomer(false).then((exists) => {
-					checkingDuplicate = false;
-					if (exists) {
-						frappe.msgprint({
-							title: __("Existing customer"),
-							message: duplicateMessage(),
-							indicator: "orange",
-						});
-						return;
-					}
-					submissionApproved = true;
-					button.click();
-				}).catch(() => {
-					checkingDuplicate = false;
-					frappe.msgprint(__("We could not validate existing customer details. Please try again."));
-			});
-		}, true);
-	}
+	function bindDuplicateCheck() { /* Submission belongs exclusively to hp_webform_submit.js. */ }
 
 	function bindFieldChecks() {
 		if (!isLoanApplicationWebForm() || fieldChecksBound) return;

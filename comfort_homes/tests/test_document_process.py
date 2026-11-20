@@ -349,7 +349,7 @@ def test_final_controls_follow_origination_finalization_on_save_and_submit():
     e=events()
     callbacks=['comfort_homes.loan_application_workflow.calculate_financials','comfort_homes.document_controls.validate_application', 'comfort_homes.hp_lending.hp_workflow.validate_progress']
     assert e['Loan Application']['before_save']==callbacks==e['Loan Application']['before_submit']
-    assert e['Co-Applicant']['before_save']==['comfort_homes.origination.apply_profile','comfort_homes.document_controls.validate_profile']
+    assert e['Co-Applicant']['before_save']==['comfort_homes.origination.apply_profile','comfort_homes.hp_lending.hp_intake.validate_locations', 'comfort_homes.document_controls.validate_profile']
     assert e['Loan Customer Agreement']['before_save'].endswith('validate_agreement')
     source=(ROOT/'hp_lending/hp_lifecycle.py').read_text()
     assert 'validate_signed_pack(application)' in source

@@ -5,8 +5,7 @@
   "tasks": [
    {
     "doctype": "Workflow Transition Task",
-    "task": "Server Script",
-    "link": "Auto Create Draft PO on Loan Activation",
+    "task": "Flexi Generate Draft LPO",
     "enabled": 1,
     "asynchronous": 0
    }

@@ -27,7 +27,7 @@
 	}
 
 	function initialiseDeskFilter() {
-		if (!window.frappe?.ui?.form) return;
+		if (typeof window.frappe?.ui?.form?.on !== "function") return;
 		frappe.ui.form.on("Loan Application", {
 			setup(frm) {
 				frm.set_query(FIELDNAME, QUERY);

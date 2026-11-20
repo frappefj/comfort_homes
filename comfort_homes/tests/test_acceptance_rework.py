@@ -249,7 +249,7 @@ const frappe={session:{user:'officer'},user_roles:['Loan Officer'],ui:{form:{on:
 const ctx={frappe,window:{},__:s=>s};vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),ctx);
 function form(state){return {doc:{name:'APP',docstatus:0,workflow_state:state,custom_document_collection_complete:'Yes'},doctype:'Loan Application',is_new:()=>false,is_dirty:()=>false,buttons:{},add_custom_button(t,f){this.buttons[t]=f;},dashboard:{set_headline_alert:()=>{}}};}
-for(const s of ['Initiated','Under Review','Pending Approval','Approved']){const a=form(s);handlers['Loan Application'].refresh(a);assert.equal(Object.keys(a.buttons).length,0);}
+for(const s of ['Initiated','Under Review','Pending Approval','Approved']){const a=form(s);handlers['Loan Application'].refresh(a);assert.ok(a.buttons['Generate Assessment PDF']);assert.equal(a.buttons['Record Combined Signed Pack'],undefined);}
 const a=form('Contract Signing');handlers['Loan Application'].refresh(a);assert.ok(a.buttons['Record Combined Signed Pack']);
 vm.runInContext(fs.readFileSync(process.argv[2],'utf8'),ctx);
 const b=form('Loan Activated');handlers['Loan Application'].refresh(b);

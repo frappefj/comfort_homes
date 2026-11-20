@@ -14,8 +14,9 @@ app_include_js = ["/assets/comfort_homes/js/hp_origination_math.js"]
 web_include_js = ["/assets/comfort_homes/js/hp_origination_math.js", "/assets/comfort_homes/js/loan_application_branch_filter.js"]
 
 doctype_js = {
-	"Loan": "public/js/loan_temporary_repayment_tenure.js",
-	"Co-Applicant": ["public/js/co_applicant_profile.js", "public/js/document_evidence.js"],
+	"Loan": ["public/js/loan_temporary_repayment_tenure.js", "public/js/hp_service_fees.js"],
+    "Sales Invoice": "public/js/hp_service_fees.js",
+	"Co-Applicant": ["public/js/co_applicant_profile.js", "public/js/document_evidence.js", "public/js/hp_document_status.js"],
 	"Loan Application": [
 		"public/js/loan_application_branch_filter.js",
 		"public/js/loan_application_co_applicant.js",
@@ -23,6 +24,7 @@ doctype_js = {
 		"public/js/loan_application_signed_pack.js",
 		"public/js/document_evidence.js",
         "public/js/hp_workflow_handoff.js",
+        "public/js/hp_document_status.js",
 	]
 }
 extend_doctype_class = {
@@ -80,7 +82,7 @@ fixtures = [
 		# Flexi extends Lending's standard DocTypes through Custom Field records.
 		# Keeping the complete set here makes a fresh installation reproduce the
 		# same Loan Application layout and database columns as the working site.
-		"filters": [["dt", "in", ["Loan Application", "Loan", "Loan Product", "Journal Entry", "Loan Disbursement", "Sales Invoice", "Purchase Order", "Purchase Invoice", "Customer", "Contact", "Loan Document Template", "Co-Applicant", "Loan Customer Agreement"]]],
+		"filters": [["dt", "in", ["Company", "Loan Application", "Loan", "Loan Product", "Journal Entry", "Loan Disbursement", "Sales Invoice", "Purchase Order", "Purchase Invoice", "Customer", "Contact", "Loan Document Template", "Co-Applicant", "Loan Customer Agreement"]]],
 	},
 	{
 		"dt": "Property Setter",
@@ -186,6 +188,12 @@ fixtures = [
 ]
 
 doc_events = {
+    "Sales Invoice": {
+        "before_validate": "comfort_homes.hp_lending.hp_service_fees.defaults",
+        "validate": "comfort_homes.hp_lending.hp_service_fees.validate",
+        "before_submit": "comfort_homes.hp_lending.hp_service_fees.before_submit",
+    },
+    "Payment Entry": {"before_submit": "comfort_homes.hp_lending.hp_service_fees.validate_receipt"},
 	"Loan Customer Agreement": {
 		"before_save": "comfort_homes.document_controls.validate_agreement",
 	},
@@ -223,12 +231,13 @@ doc_events = {
 			"comfort_homes.loan_application_workflow.calculate_financials",
 			"comfort_homes.co_applicant.validate_existing_co_applicant",
 			"comfort_homes.loan_application_workflow.validate_branch_location",
+            "comfort_homes.hp_lending.hp_intake.validate_locations",
 			"comfort_homes.hp_lending.hp_lifecycle.validate_deposit_payment",
 		],
 	},
 	"Co-Applicant": {
 		"before_validate": "comfort_homes.origination.apply_profile",
-		"before_save": ["comfort_homes.origination.apply_profile", "comfort_homes.document_controls.validate_profile"],
+		"before_save": ["comfort_homes.origination.apply_profile", "comfort_homes.hp_lending.hp_intake.validate_locations", "comfort_homes.document_controls.validate_profile"],
 		"after_insert": "comfort_homes.co_applicant.sync_linked_loan_application",
 		"on_update": "comfort_homes.co_applicant.sync_linked_loan_application",
 	},
@@ -477,4 +486,4 @@ scheduler_events = {
 # ignore_translatable_strings_from = []
 
 # Native workflow task; no direct status or GL edits.
-workflow_methods = [{"name": "Flexi Submit Approved LPO", "method": "comfort_homes.hp_lending.hp_workflow.submit_approved_lpo"}]
+workflow_methods = [{"name": "Flexi Submit Approved LPO", "method": "comfort_homes.hp_lending.hp_workflow.submit_approved_lpo"}, {"name": "Flexi Generate Draft LPO", "method": "comfort_homes.hp_lending.hp_workflow.generate_lpo"}]

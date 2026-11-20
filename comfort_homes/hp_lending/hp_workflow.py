@@ -139,3 +139,37 @@ def financial_handoff(loan_application):
             {'custom_loan_application': app.name, 'company': app.company, 'docstatus': ['!=', 2]},
             ['docstatus', 'status', 'grand_total']),
         warning='Workflow labels do not certify posted GL. Submit native documents and reconcile.')
+
+
+def generate_lpo(doc):
+    """One native draft PO under application lock, called only by Generate LPO transition."""
+    from frappe.utils import today
+    frappe.only_for("Disbursement Officer")
+    if doc.company!=s.COMPANY or doc.docstatus!=1 or doc.workflow_state!="LPO Pending Approval":
+        frappe.throw("Use the application Generate LPO workflow action")
+    frappe.db.sql("SELECT name FROM `tabLoan Application` WHERE name=%s FOR UPDATE",(doc.name,))
+    _require_disbursed(doc)
+    existing=frappe.get_all("Purchase Order",filters={"custom_loan_application":doc.name,"company":doc.company,"docstatus":["!=",2]},fields=["name"])
+    if existing:
+        if len(existing)!=1: frappe.throw("Multiple LPOs exist; stop and review")
+        po=frappe.get_doc("Purchase Order",existing[0].name);po.check_permission("read");_validate_po(po,doc)
+        return po.name
+    # A legacy remarks-only PO must be reviewed, not silently relinked or duplicated.
+    import re
+    legacy=frappe.get_all("Purchase Order",filters={"company":doc.company,"docstatus":["!=",2],"remarks":["like","%Loan Application:%"+doc.name+"%"]},fields=["name","remarks"])
+    for row in legacy:
+        match=re.search(r"Loan Application:\s*([^|\n]+)",row.remarks or "")
+        if match and match.group(1).strip()==doc.name:
+            frappe.throw("A legacy LPO already references this application; review links before generating another")
+    po=frappe.get_doc(dict(doctype="Purchase Order",company=doc.company,supplier=s.CHD_SUPPLIER,currency="FJD",
+        transaction_date=today(),schedule_date=today(),custom_loan_application=doc.name,
+        customer=doc.applicant,remarks="Loan Application: "+doc.name))
+    po.check_permission("create")
+    for item in doc.get("custom_flexi_purchase_items") or []:
+        if not str(item.get("product_description") or "").strip() or flt(item.get("quantity"))<=0 or flt(item.get("unit_price"))<0:
+            frappe.throw("Complete each approved purchase row before generating LPO")
+        po.append("items",dict(item_code=s.HP_ITEM_CODE,description=item.product_description,qty=item.quantity,rate=item.unit_price,uom="Unit",schedule_date=today()))
+    if not po.get("items"): frappe.throw("Approved purchase items are missing")
+    po.insert()  # native validation and native create permission, never ignore_permissions
+    _validate_po(po,doc)
+    return po.name

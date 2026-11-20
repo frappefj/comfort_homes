@@ -38,7 +38,10 @@
                 (d.disbursements || []).forEach(v => frm.add_custom_button(
                     v.docstatus === 1 ? __("View Submitted Disbursement") : __("Complete Draft Disbursement"),
                     () => frappe.set_route("Form", "Loan Disbursement", v.name), group));
-                (d.purchase_orders || []).forEach(v => frm.add_custom_button(__("Open LPO"),
+                if (state === "LPO Pending Approval" && (d.purchase_orders || []).some(v => v.docstatus === 1)) {
+                    frm.dashboard.set_headline_alert(__("LPO already submitted while application is pending approval. Review the workflow mismatch; do not create another PO or reset this application."), "orange");
+                }
+                (d.purchase_orders || []).forEach(v => frm.add_custom_button(v.docstatus === 0 ? __("Open Draft LPO — Awaiting Approval") : __("View Submitted LPO"),
                     () => frappe.set_route("Form", "Purchase Order", v.name), group));
             });
         },

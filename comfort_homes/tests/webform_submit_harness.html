@@ -1,0 +1,19 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Flexi local submit regression — synthetic only</title></head><body><h1>Local event test, not a Frappe site</h1><form class="web-form"><label>Name <input name="name" value="Synthetic test"></label><button class="submit-btn" type="submit">Submit</button></form><output id="result">Ready</output><script>
+window.test={saves:0,successes:0,lookups:0,scenario:"success",delay:30,messages:[],ajax:[]};
+window.__=s=>s;
+window.$=()=>({on:(name,fn)=>test.ajax.push(fn)});
+window.flexiValidateFinalFields=()=>{if(test.scenario==="invalid")throw new Error("Required field missing");};
+window.frappe={msgprint:m=>{test.messages.push(m.message||m);document.querySelector('#result').textContent=m.message||m;},web_form:{
+ fields_dict:{},events:{on:(_e,f)=>f()},get_value:k=>({custom_tin_number:"synthetic",applicant_email_address:"local@example.invalid"}[k]),
+ save(){if(window.saving)return false; if(test.scenario==="early")return false; window.saving=true;test.saves++;
+  setTimeout(()=>{window.saving=false;
+   if(test.scenario==="server-error"){test.ajax.forEach(f=>f(null,{status:417,responseJSON:{exc:"ValidationError"}},{data:"cmd=frappe.website.doctype.web_form.web_form.accept"}));return;}
+   if(test.scenario==="lost"){test.ajax.forEach(f=>f(null,{status:0},{data:"cmd=frappe.website.doctype.web_form.web_form.accept"}));return;}
+   frappe.web_form.handle_success({name:"SYNTHETIC-1"});
+  },test.delay);return false;
+ },handle_success(){test.successes++;document.querySelector('#result').textContent='Saved once';}
+},call(){test.lookups++;return new Promise((resolve,reject)=>setTimeout(()=>{
+ if(test.scenario==="lookup-error")reject(new Error("Lookup failed"));
+ else resolve({message:{exists:test.scenario==="duplicate"}});
+},test.delay));}};
+</script><script src="/hp_webform_submit.js"></script></body></html>

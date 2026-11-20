@@ -25,7 +25,7 @@ function form(type,state){return {doctype:type,doc:{name:'APP',docstatus:0,workf
     is_new:()=>false,is_dirty:()=>false,reload_doc:()=>Promise.resolve(),buttons:{},
     add_custom_button(label,action){this.buttons[label]=action;}};}
 const app=form('Loan Application','Contract Signing');handlers['Loan Application'].refresh(app);
-assert.ok(app.buttons['Record Wet-signed Scan']);assert.equal(app.buttons['Verify Uploaded Contract Pack'],undefined);
+assert.equal(app.buttons['Record Wet-signed Scan'],undefined);assert.ok(app.buttons['Record Combined Signed Pack']);assert.equal(app.buttons['Verify Uploaded Contract Pack'],undefined);
 app.buttons['Record Printed Assessment PDF']();
 assert.equal(uploaded.make_attachments_public,false);assert.equal(uploaded.allow_toggle_private,false);
 assert.equal(uploaded.allow_web_link,false);assert.equal(uploaded.allow_google_drive,false);

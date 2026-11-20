@@ -1,0 +1,26 @@
+{
+  "purpose": "Approved rollout requirement: native masters referenced by the public Loan Application document rows",
+  "approved_site": "https://devcom.syd.frappe.cloud",
+  "implemented_on": "2026-11-20",
+  "reference_only": true,
+  "rollout_rule": "Include these records in the next approved app setup/fixture batch. Create only missing names; preserve existing records and ID. Check all seeded public-form document_type values resolve before intake acceptance. This reference file is not automatically imported.",
+  "doctype": "Loan Document Type",
+  "naming_field": "loan_document_type",
+  "preserve_existing": ["ID"],
+  "required_records": [
+    {"doctype": "Loan Document Type", "loan_document_type": "Identity Document"},
+    {"doctype": "Loan Document Type", "loan_document_type": "Latest Payslip"},
+    {"doctype": "Loan Document Type", "loan_document_type": "Bank Statement"},
+    {"doctype": "Loan Document Type", "loan_document_type": "Proof of Address"},
+    {"doctype": "Loan Document Type", "loan_document_type": "Supplier Quotation"},
+    {"doctype": "Loan Document Type", "loan_document_type": "Other Supporting Document"}
+  ],
+  "acceptance_checks": [
+    "Every seeded document type exists with the exact name in Loan Document Type",
+    "Run a fresh public web-form submission with clearly fictitious attachments after approval",
+    "Confirm one saved application, correct document links and visible native Submitted confirmation",
+    "Re-running approved setup creates no duplicate masters"
+  ],
+  "evidence_file": "Flexi_Document_Type_Master_Execution_2026-11-20.json",
+  "not_yet_proved": "An attached-document application has not yet been successfully resubmitted and inspected after this master-data batch."
+}

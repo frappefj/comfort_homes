@@ -494,3 +494,21 @@ def validate_agreement(doc, method=None):
             frappe.throw('Record or verify signature evidence through the application document actions, not a direct child edit')
     if previous and previous.get('final_signed_file') and any(doc.get(k) != previous.get(k) for k in ('parent', 'parenttype', 'parentfield', 'document_template', 'document_code')):
         frappe.throw('Recorded signature evidence cannot be reassigned')
+
+
+@frappe.whitelist()
+def evidence_status(doctype, name):
+    """Read-only UI hints; does not render, save, repair or download files."""
+    if doctype not in ("Loan Application", "Co-Applicant"):
+        frappe.throw("Unsupported document")
+    doc=frappe.get_doc(doctype,name)
+    doc.check_permission("read")
+    if doc.company != COMPANY:
+        frappe.throw("Select a Flexi record")
+    field=frappe.get_meta(doctype).get_field("custom_cira_authority_text")
+    expected=fingerprint({"name":str(doc.get("custom_cira_authority_name") or doc.get("applicant_name") or "").strip(),
+        "signature":doc.get("custom_cira_authority_signature"),"acknowledged":1,"wording":field.options if field else ""})
+    same_name=" ".join(str(doc.get("custom_cira_authority_name") or "").lower().split()) == " ".join(str(doc.get("applicant_name") or "").lower().split())
+    return dict(consent_current=bool(consent_complete(doc) and same_name and expected==doc.get("custom_hp_cira_fingerprint")),
+        assessment_present=bool(doc.get("custom_hp_assessment_pdf")),
+        assessment_source_current=bool(doctype=="Loan Application" and doc.get("custom_hp_assessment_pdf") and doc.get("custom_hp_assessment_fingerprint")==_assessment_hash(doc)))

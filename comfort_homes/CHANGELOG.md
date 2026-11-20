@@ -1,5 +1,16 @@
 # Comfort Homes — Changelog
 
+## 0.0.7.dev8 — source-only reliability and independent-fee candidate
+
+- Single native-save submit coordinator, no recursive clicks, explicit failure/uncertain retry states; grid ownership and zero-price row preservation.
+- Native master-ID geography filters/server guards; public callable API guard.
+- Assessment actions available at KYC review stages; valid saved CIRA hides redundant signing; combined-pack UI simplified.
+- Explicit conflict-safe native rollout preview for six document masters, catalogue/template and guarded non-inventory defaults; no auto-apply.
+- Independent service invoices/allocated receipts, reference-only links, same invoice/value date, exact inclusive VAT, event uniqueness/authority and native-trigger rejection. Feature OFF pending policy/native isolation tests.
+- Locked native LPO creation replaces permission-bypassing legacy generator; existing approval method/gates retained; no legacy state reset.
+- Read-only manager overview and separate fee/legacy exception statement summaries; actual-booking chronology and flat-rate labels.
+- Full prior rework register and all unperformed native/lifecycle/role/PDF tests retained in docs. No remote/site actions.
+
 ## 0.0.7.dev7 — consolidated acceptance rework
 
 - Isolate PDF rendering from saved assessment document and verify persisted evidence.

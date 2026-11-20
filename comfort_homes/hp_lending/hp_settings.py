@@ -139,6 +139,9 @@ def check_setup():
 	for product in frappe.get_all("Loan Product", filters={"company": COMPANY}, fields=["name", "penalty_interest_rate"]):
 		if product.penalty_interest_rate:
 			problems.append("Loan Product " + product.name + ": native penalty rate must be 0")
+	from comfort_homes.hp_lending.hp_rollout import diagnostics
+	if company_exists:
+		problems.extend(diagnostics())
 	return {"ok": not problems, "problems": problems, "native_acceptance_tested": False, "release_blockers": list(RELEASE_BLOCKERS)}
 
 
