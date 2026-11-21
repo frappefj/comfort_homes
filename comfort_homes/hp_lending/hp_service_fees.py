@@ -122,10 +122,14 @@ def draft_values(loan, fee_item):
     if reference.company!=s.COMPANY or reference.applicant_type!="Customer": frappe.throw("Select a Flexi customer Loan")
     rate,number=FEE_RATES[fee_item]
     template=frappe.db.get_value("Sales Taxes and Charges Template",{"title":TAX_TITLE,"company":s.COMPANY,"disabled":0},"name")
+    # The desk form fills these when an item is picked; a pre-built draft has to carry them itself.
+    item=frappe.db.get_value("Item",fee_item,["item_name","description","stock_uom"],as_dict=True) or {}
+    uom=item.get("stock_uom") or "Nos"
     return dict(doctype="Sales Invoice",company=s.COMPANY,customer=reference.applicant,currency="FJD",conversion_rate=1,
         custom_hp_independent_fee=1,custom_hp_reference_loan=loan,custom_hp_reference_application=reference.loan_application,
         debit_to=account("1120"),disable_rounded_total=1,taxes_and_charges=template,
-        items=[dict(item_code=fee_item,qty=1,rate=rate,income_account=account(number))])
+        items=[dict(item_code=fee_item,item_name=item.get("item_name") or fee_item,description=item.get("description") or fee_item,
+            uom=uom,stock_uom=uom,conversion_factor=1,qty=1,rate=rate,income_account=account(number))])
 
 
 def validate_receipt(doc, method=None):

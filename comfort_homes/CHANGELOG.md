@@ -8,6 +8,7 @@
 - Application Assessment is no longer added as a customer document, so Download All Documents does not include it. It stays attached to the application.
 - Read & Sign CIRA Authority Form button shows only in Draft and Initiated.
 - Co-applicants: read-only panel on the Loan Application (name, state, CIRA signed, KYC complete, link); banner on the Co-Applicant form linking back to the main application; blocking messages now name the co-applicant; new "Co-app" column (None / Pending / Approved) in Portfolio Control.
+- Fix: Prepare Independent Fee Invoice opened a draft that failed with "Item Name / UOM / UOM Conversion Factor is required". The draft line now carries item name, description, UOM and conversion factor.
 - Needs install + migrate (workflow, custom field and client script are fixtures). Not site-tested.
 
 ## 0.0.7.dev12 — HP GL Trace, spouse rules, Loan Purpose off
