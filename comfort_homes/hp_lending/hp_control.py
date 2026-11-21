@@ -75,7 +75,7 @@ def sort_key(row):
     return (LIGHT_RANK[row["light"]], row["stage_order"] >= CLOSED_ORDER, -BUCKET_RANK[row["bucket"]], -flt(row["idle_hours"]), -flt(row["overdue"]), row["application"] or "")
 
 
-def assemble(apps, loans, demands, next_due, invoices, activity, now, filters=None):
+def assemble(apps, loans, demands, next_due, invoices, activity, now, filters=None, co_apps=None):
     """Pure: join already-fetched data into rows. `activity` maps application -> latest datetime."""
     filters = filters or {}
     loan_by_app = {l["loan_application"]: l for l in loans if l.get("loan_application")}
@@ -83,16 +83,22 @@ def assemble(apps, loans, demands, next_due, invoices, activity, now, filters=No
     for app in apps:
         loan = loan_by_app.get(app["name"])
         seen.add(loan["name"] if loan else None)
-        rows.append(_row(app, loan, demands, next_due, invoices, activity, now))
+        rows.append(_row(app, loan, demands, next_due, invoices, activity, now, co_apps))
     for loan in loans:  # loans with no application (for example imported) still count
         if loan["name"] not in seen and not loan.get("loan_application"):
-            rows.append(_row(None, loan, demands, next_due, invoices, activity, now))
+            rows.append(_row(None, loan, demands, next_due, invoices, activity, now, co_apps))
     rows = [r for r in rows if _wanted(r, filters)]
     rows.sort(key=sort_key)
     return rows
 
 
-def _row(app, loan, demands, next_due, invoices, activity, now):
+def co_app_status(states):
+    """None without co-applicants, Approved when every one is approved, otherwise Pending."""
+    if not states: return "None"
+    return "Approved" if all(x == "Approved" for x in states) else "Pending"
+
+
+def _row(app, loan, demands, next_due, invoices, activity, now, co_apps=None):
     state = (app or {}).get("workflow_state") or ("Active Loan Account" if loan else "")
     label, order = STAGES.get(state, (state or "Unknown", 0 if not state else 1))
     if loan and loan.get("status") == "Closed": label, order = "Closed", CLOSED_ORDER
@@ -114,7 +120,8 @@ def _row(app, loan, demands, next_due, invoices, activity, now):
         stage=label, stage_order=order, light=light(order, bkt, idle), idle_hours=idle,
         bucket=bkt, dpd=dpd if bkt else None, overdue=round(flt(d["amount"]), 2) if d else 0.0,
         next_due=next_due.get(loan["name"]) if loan else None, balance=balance,
-        pi=pi_status(inv), delivery=delivery_status(order, state))
+        pi=pi_status(inv), delivery=delivery_status(order, state),
+        co_app=co_app_status((co_apps or {}).get((app or {}).get("name"), [])))
 
 
 def _wanted(row, f):
@@ -161,7 +168,11 @@ def fetch(filters=None):
     for r in frappe.db.sql("""SELECT custom_loan_application n, MAX(modified) w FROM `tabPurchase Order`
             WHERE custom_loan_application IS NOT NULL AND custom_loan_application != '' GROUP BY custom_loan_application""", as_dict=True): bump(r.n, r.w)
     for a in apps: bump(a["name"], a["modified"])
-    return assemble(apps, loans, demands, next_due, invoices, activity, now_datetime(), filters)
+    co_apps = {}
+    for r in frappe.get_all("Co-Applicant", filters={"loan_application": ["is", "set"], "docstatus": ["!=", 2]},
+                            fields=["loan_application", "workflow_state"], limit_page_length=0):
+        co_apps.setdefault(r.loan_application, []).append(r.workflow_state)
+    return assemble(apps, loans, demands, next_due, invoices, activity, now_datetime(), filters, co_apps)
 
 
 def summary(rows):

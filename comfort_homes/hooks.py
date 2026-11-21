@@ -16,7 +16,7 @@ web_include_js = ["/assets/comfort_homes/js/hp_origination_math.js", "/assets/co
 doctype_js = {
 	"Loan": ["public/js/loan_temporary_repayment_tenure.js", "public/js/hp_service_fees.js"],
     "Sales Invoice": "public/js/hp_service_fees.js",
-	"Co-Applicant": ["public/js/co_applicant_profile.js", "public/js/document_evidence.js", "public/js/hp_document_status.js"],
+	"Co-Applicant": ["public/js/co_applicant_profile.js", "public/js/document_evidence.js", "public/js/hp_document_status.js", "public/js/co_applicant_back_link.js"],
 	"Loan Application": [
 		"public/js/loan_application_branch_filter.js",
 		"public/js/loan_application_co_applicant.js",
@@ -25,6 +25,7 @@ doctype_js = {
 		"public/js/document_evidence.js",
         "public/js/hp_workflow_handoff.js",
         "public/js/hp_document_status.js",
+        "public/js/loan_application_co_applicants_panel.js",
 	]
 }
 extend_doctype_class = {
@@ -229,12 +230,12 @@ doc_events = {
 		"before_insert": "comfort_homes.loan_application_workflow.validate_public_application_not_existing_customer",
 		"before_validate": [
 			"comfort_homes.origination.resolve_loan_purpose",
-			"comfort_homes.signed_pack.ensure_assessment_customer_document",
 			"comfort_homes.loan_application_workflow.calculate_financials",
 			"comfort_homes.co_applicant.validate_existing_co_applicant",
 			"comfort_homes.loan_application_workflow.validate_branch_location",
             "comfort_homes.hp_lending.hp_intake.validate_locations",
 			"comfort_homes.hp_lending.hp_lifecycle.validate_deposit_payment",
+			"comfort_homes.hp_lending.hp_workflow.require_deposit_before_contract",
 		],
 	},
 	"Co-Applicant": {

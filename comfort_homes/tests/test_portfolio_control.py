@@ -108,3 +108,17 @@ def test_report_workspace_and_cards_are_restricted_to_directors_and_managers():
     for card in (mod / "number_card").glob("portfolio_*/*.json"):
         d = json.loads(card.read_text())
         assert d["type"] == "Custom" and d["method"].startswith("comfort_homes.hp_lending.hp_control.card_")
+
+
+def test_dev13_co_app_status(c):
+    assert c.co_app_status([]) == "None"
+    assert c.co_app_status(["Approved", "Draft"]) == "Pending"
+    assert c.co_app_status(["Approved"]) == "Approved"
+
+
+def test_dev13_row_has_co_app(c):
+    app = dict(name="A1", workflow_state="Under Review", custom_branchlocation="X", applicant_name="N", modified=datetime(2026, 11, 20))
+    rows = c.assemble([app], [], {}, {}, {}, {}, NOW, None, {"A1": ["Draft"]})
+    assert rows[0]["co_app"] == "Pending"
+    rows = c.assemble([app], [], {}, {}, {}, {}, NOW)
+    assert rows[0]["co_app"] == "None"

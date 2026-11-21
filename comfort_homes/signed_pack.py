@@ -40,7 +40,8 @@ def _agreement_rows(docname):
 			"Loan Document Template", row.document_template, template_fields, as_dict=True
 		) or {}
 		code = row.document_code or template.get("document_code")
-		if code == "REQ" or (has_pf and not template.get("print_format")):
+		# The assessment is attached to the application before approval; it is not a customer document.
+		if code in ("REQ", ASSESSMENT_DOCUMENT_CODE) or (has_pf and not template.get("print_format")):
 			continue
 		row.requires_signature = bool(template.get("requires_signature"))
 		row.title = template.get("document_name") or code

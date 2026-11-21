@@ -139,7 +139,7 @@ def test_profile_edit_after_approval_requires_renewed_review(controls, monkeypat
     p.custom_hp_profile_review_fingerprint = fingerprint(m._profile_data(p))
     p.custom_flexi_employer_name = 'New Employer'
     monkeypatch.setattr(m, '_profiles', lambda a: [p])
-    with pytest.raises(ValueError, match='renew the linked'):
+    with pytest.raises(ValueError, match='renew the profile review of co-applicant'):
         m._require_profiles(doc())
 
 

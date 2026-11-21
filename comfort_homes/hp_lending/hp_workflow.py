@@ -83,10 +83,25 @@ def validate_progress(doc, method=None):
     loan = _require_disbursed(doc)
     if target in APPROVED_PO_STATES and _purchase_order(doc).docstatus != 1:
         frappe.throw('Submit the approved linked Purchase Order before progressing the LPO')
+    if target == 'Delivered - Awaiting Documents' and not doc.get('custom_hp_delivery_docket'):
+        frappe.throw('Attach the supplier delivery docket before confirming delivery')
     if target in ('Active Loan Account', 'Closed'):
         _require_invoice(doc)
     if target == 'Closed' and loan.status != 'Closed':
         frappe.throw('Close the native Loan through Lending before closing the application')
+
+
+def require_deposit_before_contract(doc, method=None):
+    """The deposit is part of the agreement: it must be received (submitted Payment Entry) before the customer
+    documents are generated, i.e. on Approved -> Contract Signing. hp_lifecycle keeps its own later check at
+    compliance sign-off. Reuses that module's deposit validation; nothing financial is changed here."""
+    if doc.company != s.COMPANY:
+        return
+    old = doc.get_doc_before_save()
+    if not old or old.get('workflow_state') != 'Approved' or doc.get('workflow_state') != 'Contract Signing':
+        return
+    from comfort_homes.hp_lending.hp_lifecycle import check_deposit
+    check_deposit(doc)
 
 
 def submit_approved_lpo(doc):

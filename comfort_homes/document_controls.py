@@ -129,11 +129,18 @@ def _capture_cira(doc):
     _set(doc, 'custom_hp_cira_fingerprint', digest)
 
 
+def _who(doc):
+    """Name the person a blocking message is about, so processors know whose form to open."""
+    if doc.get('doctype') != 'Co-Applicant':
+        return ''
+    return ' for co-applicant %s (%s)' % (doc.get('applicant_name') or doc.get('name'), doc.get('name'))
+
+
 def _require_cira(doc):
     if not consent_complete(doc):
-        frappe.throw('Record the individual client CIRA acknowledgement and digital signature before KYC initiation')
+        frappe.throw('Record the individual client CIRA acknowledgement and digital signature%s before KYC initiation' % _who(doc))
     if ' '.join(str(doc.get('custom_cira_authority_name') or '').lower().split()) != ' '.join(str(doc.get('applicant_name') or '').lower().split()):
-        frappe.throw('CIRA signer name must match the individual profile; obtain corrected client consent')
+        frappe.throw('CIRA signer name must match the individual profile%s; obtain corrected client consent' % _who(doc))
 
 
 def _require_profiles(doc):
@@ -141,7 +148,7 @@ def _require_profiles(doc):
         if profile.company != doc.company: frappe.throw('Linked co-applicant must belong to the same company')
         _require_cira(profile)
         if profile.workflow_state != 'Approved' or profile.get('custom_hp_profile_review_fingerprint') != fingerprint(_profile_data(profile)):
-            frappe.throw('Complete or renew the linked co-applicant profile review before facility approval')
+            frappe.throw('Complete or renew the profile review of co-applicant %s (%s) before facility approval' % (profile.get('applicant_name') or profile.name, profile.name))
 
 
 def _require_assessment(doc):
@@ -494,6 +501,16 @@ def validate_agreement(doc, method=None):
             frappe.throw('Record or verify signature evidence through the application document actions, not a direct child edit')
     if previous and previous.get('final_signed_file') and any(doc.get(k) != previous.get(k) for k in ('parent', 'parenttype', 'parentfield', 'document_template', 'document_code')):
         frappe.throw('Recorded signature evidence cannot be reassigned')
+
+
+@frappe.whitelist()
+def co_applicant_status(application):
+    """Read-only summary of the co-applicants tied to an application (panel + Portfolio Control)."""
+    app = frappe.get_doc('Loan Application', application)
+    app.check_permission('read')
+    return [dict(name=p.name, applicant_name=p.get('applicant_name'), workflow_state=p.get('workflow_state'),
+        cira_signed=int(bool(consent_complete(p))), kyc_complete=int(p.get('custom_document_collection_complete') == 'Yes'))
+        for p in _profiles(app)]
 
 
 @frappe.whitelist()

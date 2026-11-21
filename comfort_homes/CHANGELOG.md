@@ -1,5 +1,15 @@
 # Comfort Homes — Changelog
 
+## 0.0.7.dev13 — Purchase-value limit, delivery docket, deposit before contract, co-applicant tie-in
+
+- Finance Manager may Approve or Reject only when Total Purchase Value (cash price) is under 3,000; Director always. Previously the test used the net amount financed. Reject stays tied to the same limit.
+- Confirm Delivery now needs the supplier **Delivery docket** (new Attach field on the application). No supplier invoice upload: the Accounts Officer still creates and submits the Purchase Invoice at Receive Delivery Documents.
+- The deposit must be recorded and submitted before Approved moves to Contract Signing (it is still checked at compliance sign-off).
+- Application Assessment is no longer added as a customer document, so Download All Documents does not include it. It stays attached to the application.
+- Read & Sign CIRA Authority Form button shows only in Draft and Initiated.
+- Co-applicants: read-only panel on the Loan Application (name, state, CIRA signed, KYC complete, link); banner on the Co-Applicant form linking back to the main application; blocking messages now name the co-applicant; new "Co-app" column (None / Pending / Approved) in Portfolio Control.
+- Needs install + migrate (workflow, custom field and client script are fixtures). Not site-tested.
+
 ## 0.0.7.dev12 — HP GL Trace, spouse rules, Loan Purpose off
 
 - New read-only report **HP GL Trace** (Director, Finance Manager, Accounts Officer): every GL line behind a loan or application, customer and supplier side (deposit receipt, disbursement, gross-booking journal, demands, accruals, repayments, adjustments, write-off, fee invoices and their receipts, CHD purchase invoice and its payment). Filters: Loan, Application, Since (date/time), voucher type, account, include supplier side. Views: Lines, By account, By voucher. Check column flags an unbalanced voucher or a Sales Invoice with no VAT line.

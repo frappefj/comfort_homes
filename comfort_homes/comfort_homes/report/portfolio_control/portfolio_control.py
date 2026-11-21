@@ -18,7 +18,7 @@ def execute(filters=None):
         dict(fieldname="overdue", label="Overdue", fieldtype="Currency", width=100),
         dict(fieldname="next_due", label="Next due", fieldtype="Date", width=95),
         dict(fieldname="balance", label="Balance", fieldtype="Currency", width=105),
-        text("pi", "PI", 65), text("delivery", "Deliv", 70),
+        text("co_app", "Co-app", 70), text("pi", "PI", 65), text("delivery", "Deliv", 70),
     ]
     s = c.summary(rows)
     summary = [
