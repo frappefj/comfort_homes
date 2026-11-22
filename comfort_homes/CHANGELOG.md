@@ -1,5 +1,19 @@
 # Comfort Homes — Changelog
 
+## 0.0.7.dev14 — MYOB conversion on Lending's import route
+
+- Converted MYOB contracts load as native **imported** Loans (`is_imported`, migration date = MYOB cut-over 20-11-2026) on the original contract schedule. Opening principal = the part overdue at cut-over (Lending's meaning). Lending posts the opening receivable itself: Dr 1101 / Cr 1910 Temporary Opening.
+- New Loan Product **HP-CONV** (`hp_conversion.setup_conversion`): copy of HP-STD at 0% with 1910 as payment and disbursement account, so the opening entry lands in 1910 and Lending never defaults the 22% product rate.
+- On Loan submit, a converted loan posts the rest of its opening position once (all idempotent): unearned interest Dr 1910 / Cr 2013 (new Journal Entry type **Opening Balance**); unpaid MYOB default interest as a Loan Balance Adjustment to 2015 (`HP-PEN-<loan>-OPEN`, realised on closure like any late charge); other unpaid fees Dr 1120 (customer) / Cr 1910; paid-ahead amount as a native Advance Payment received into 1910; and the imported arrears demand is dated at the oldest unpaid instalment so days past due and NPA continue from MYOB.
+- The Loan is linked to its converted application only after Lending has finished the import, so the gross-booking reclass, deposit and signed-pack checks (hp_lifecycle) never run on converted loans. Converted applications are written as records of the MYOB contract (no origination hooks); the workflow gate skips them.
+- Interest release and late charges for converted loans run from `hp_conversion` on the same schedule and rules as hp_interest / hp_penalties. MYOB's earned interest counts as already released. Late charges start only when **Late Charges Active** is ticked on the loan (after its repayments are caught up), from that date forward.
+- A repayment on a converted loan must name a bank or cash account (blocks the 1910 product default).
+- New read-only report **HP Conversion Check**: per converted loan, MYOB balance vs Lending's opening 1101, MYOB unearned vs 2013 opening, DPD at cut-over vs now, NPA, Draft/Submitted, review reason; summary of drafts and the 1910 balance.
+- Loader `hp_conversion.load_batch` (System Manager, POST, dry run by default): creates customer, application and loan per contract, each in its own savepoint; Submit or Draft per the extraction's `load_as`.
+- Chart setup data: 2016 Westpac Bank - OD - Flexi - 9808559661 (Bank, Current Liabilities).
+- Pinned files hp_interest.py, hp_penalties.py, hp_lifecycle.py, hp_settlement.py unchanged (hash-checked in tests).
+- Needs install + migrate (custom fields are fixtures), then `setup_conversion(dry_run=0)`. Not site-tested.
+
 ## 0.0.7.dev13 — Purchase-value limit, delivery docket, deposit before contract, co-applicant tie-in
 
 - Finance Manager may Approve or Reject only when Total Purchase Value (cash price) is under 3,000; Director always. Previously the test used the net amount financed. Reject stays tied to the same limit.

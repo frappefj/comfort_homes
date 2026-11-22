@@ -203,7 +203,12 @@ doc_events = {
 		"before_validate": [
 			"comfort_homes.loan_mapping.apply_loan_application_values",
 			"comfort_homes.loan_mapping.apply_temporary_repayment_tenure",
-		]
+		],
+		# dev14 MYOB conversion: opening position of an imported, converted HP loan.
+		"on_submit": "comfort_homes.hp_lending.hp_conversion.on_loan_submit",
+	},
+	"Loan Repayment": {
+		"validate": "comfort_homes.hp_lending.hp_conversion.guard_repayment_account",
 	},
 	"Loan Disbursement": {
 		"validate": "comfort_homes.hp_lending.hp_lifecycle.enforce_clearing_account",
@@ -392,10 +397,14 @@ scheduler_events = {
 	"daily_long": [
 		"comfort_homes.hp_lending.hp_penalties.assess_penalties",
 		"comfort_homes.hp_lending.hp_penalties.realise_closed_loan_penalties",
+		"comfort_homes.hp_lending.hp_conversion.assess_converted_penalties",
 	],
 	# 02:30 on the 1st: release deferred interest for the month that has just ended.
 	"cron": {
-		"30 2 1 * *": ["comfort_homes.hp_lending.hp_interest.release_deferred_interest"],
+		"30 2 1 * *": [
+			"comfort_homes.hp_lending.hp_interest.release_deferred_interest",
+			"comfort_homes.hp_lending.hp_conversion.release_converted_interest",
+		],
 	},
 }
 

@@ -72,8 +72,8 @@ def _require_invoice(app):
 
 def validate_progress(doc, method=None):
     """Enforce transitions including update-after-submit; do not reset legacy states."""
-    if doc.company != s.COMPANY:
-        return
+    if doc.company != s.COMPANY or doc.get('custom_hp_converted'):
+        return  # dev14: a contract converted from MYOB has no origination/LPO stages to enforce
     old = doc.get_doc_before_save()
     if not old or old.get('workflow_state') == doc.get('workflow_state'):
         return
