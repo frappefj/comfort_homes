@@ -155,7 +155,7 @@ def test_converted_submit_posts_opening_position_once(env, monkeypatch):
 	doc = _loan()
 	module.on_loan_submit(doc)
 	assert doc.loan_application == "APP-1"
-	je_int, lba, je_fee = created
+	je_int, je_fee, lba = created  # default interest after the paid-ahead step
 	assert je_int["custom_hp_entry_type"] == "Opening Balance" and je_int["custom_hp_loan"] == "LOAN-1"
 	assert je_int["accounts"][0] == {"account": "1910 - ACC", "debit_in_account_currency": 120.5, "cost_center": "Namaka - Flexi"}
 	assert je_int["accounts"][1] == {"account": "2013 - DI", "credit_in_account_currency": 120.5}
@@ -186,6 +186,7 @@ def test_paid_to_date_then_paid_ahead(env, monkeypatch):
 	assert paid["reference_number"] == "HP-OPEN-PAID-LOAN-1" and paid["repayment_type"] == "Normal Repayment"
 	assert advance["repayment_type"] == "Advance Payment" and advance["amount_paid"] == 126.35
 	assert advance["payment_account"] == "1910 - ACC" and advance["reference_number"] == "HP-OPEN-ADV-LOAN-1"
+	assert advance["value_date"] == "2026-11-19 23:59:59"  # end of the day before the migration date
 	assert f.flags.in_import is None  # restored after the imported repayment
 
 

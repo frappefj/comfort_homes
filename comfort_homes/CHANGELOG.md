@@ -1,5 +1,12 @@
 # Comfort Homes — Changelog
 
+## 0.0.7.dev17 — Conversion: paid-ahead timing
+
+- Found in the full devcom dry run: on a paid-ahead loan with an instalment due on the migration date, Lending's Advance Payment reschedule kept that instalment in the remaining schedule although the advance had paid it (risk of billing it twice).
+- The paid-ahead Advance Payment is now valued at the end of the day before the migration date (the MYOB cut-over), and the paid-to-date import record at the start of that day. The extraction now sets the migration date to the opening date (cut-over + 1 day), so every instalment up to and including the cut-over date is history, as in MYOB.
+- MYOB default interest (opening Loan Balance Adjustment) is posted after the paid-ahead step, so it is never folded into the rescheduled instalments.
+- Install only (no fixture changes). Not site-tested beyond the dry run that found it.
+
 ## 0.0.7.dev16 — Conversion file loader; CHD invoice gate removed; Sales Person
 
 - **File loader for the full MYOB load.** `hp_conversion.load_from_file(file_url, dry_run, batch_size=50)` (System Manager, POST) reads the extraction's `14_devcom_load_payload.json` attached in devcom as a private File, and loads it in the background in batches of 50 (a live run commits each batch; a dry run rolls each back). Progress and finished reports: `conversion_status()`.

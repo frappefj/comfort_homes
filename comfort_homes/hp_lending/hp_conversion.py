@@ -114,10 +114,11 @@ def on_loan_submit(doc, method=None):
 	try:
 		_link_application(doc)
 		_post_opening_unearned(doc)
-		_post_opening_penalty(doc)
 		_post_opening_fees(doc)
 		_post_opening_paid(doc)
 		_post_opening_advance(doc)
+		# After the paid-ahead reschedule, so MYOB default interest is never folded into the instalments.
+		_post_opening_penalty(doc)
 		_date_opening_arrears(doc)
 	finally:
 		frappe.flags.hp_conversion = previous
@@ -189,8 +190,12 @@ def _post_opening_paid(doc):
 	repayment = frappe.get_doc({
 		"doctype": "Loan Repayment", "against_loan": doc.name, "applicant_type": "Customer", "applicant": doc.applicant,
 		"company": doc.company, "loan_product": doc.loan_product, "loan_disbursement": disbursement,
-		"repayment_type": "Normal Repayment", "is_imported": 1, "posting_date": f"{doc.migration_date} 00:00:00",
-		"value_date": f"{doc.migration_date} 00:00:00", "amount_paid": float(amount), "principal_amount_paid": float(amount),
+		"repayment_type": "Normal Repayment", "is_imported": 1,
+		# Dated the day before the migration date, ahead of the paid-ahead repayment (Lending refuses a repayment
+		# dated before an existing one).
+		"posting_date": f"{add_days(getdate(doc.migration_date), -1)} 00:00:00",
+		"value_date": f"{add_days(getdate(doc.migration_date), -1)} 00:00:00",
+		"amount_paid": float(amount), "principal_amount_paid": float(amount),
 		"payment_account": _account(OPENING_ACCOUNT_NUMBER), "reference_number": key, "reference_date": doc.migration_date,
 	})
 	previous = getattr(frappe.flags, "in_import", None)
@@ -207,10 +212,13 @@ def _post_opening_advance(doc):
 	key = f"HP-OPEN-ADV-{doc.name}"
 	if amount <= 0 or frappe.db.exists("Loan Repayment", {"against_loan": doc.name, "reference_number": key, "docstatus": 1}):
 		return
+	# Paid before cut-over: value it at the end of the day before the migration (opening) date, so an instalment
+	# falling on the migration date is not treated as paid by it (it stays in the rescheduled instalments).
+	value_date = f"{add_days(getdate(doc.migration_date), -1)} 23:59:59"
 	repayment = frappe.get_doc({
 		"doctype": "Loan Repayment", "against_loan": doc.name, "applicant_type": "Customer", "applicant": doc.applicant,
 		"company": doc.company, "loan_product": doc.loan_product, "repayment_type": "Advance Payment",
-		"value_date": f"{doc.migration_date} 23:59:59", "amount_paid": float(amount),
+		"value_date": value_date, "amount_paid": float(amount),
 		"payment_account": _account(OPENING_ACCOUNT_NUMBER), "reference_number": key, "reference_date": doc.migration_date,
 	})
 	repayment.insert(ignore_permissions=True)
