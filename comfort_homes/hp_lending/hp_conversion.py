@@ -312,6 +312,33 @@ def repair_converted(loans=None, dry_run=1):
 	return out
 
 
+NAME_FIELDS = {"Loan": ("applicant_name", "custom_customer_full_name"),
+	"Loan Application": ("applicant_name", "custom_customer_full_name")}
+
+
+@frappe.whitelist(methods=["POST"])
+def fill_converted_names(dry_run=1):
+	"""dev18: list views show Customer Full Name; loans and applications loaded before dev18 have it blank.
+	Fills it (and Applicant Name) from the Customer, for converted records only.  Display fields only."""
+	frappe.only_for("System Manager")
+	changed = {}
+	for doctype, fields in NAME_FIELDS.items():
+		rows = frappe.get_all(doctype, filters={"custom_hp_converted": 1, "applicant_type": "Customer"},
+			fields=["name", "applicant"] + list(fields), limit_page_length=0)
+		names = dict(frappe.get_all("Customer", filters={"name": ["in", list({r.applicant for r in rows})]},
+			fields=["name", "customer_name"], as_list=True)) if rows else {}
+		count = 0
+		for r in rows:
+			full = names.get(r.applicant) or r.applicant
+			updates = {f: full for f in fields if r.get(f) != full}
+			if updates:
+				count += 1
+				if not int(dry_run):
+					frappe.db.set_value(doctype, r.name, updates, update_modified=False)
+		changed[doctype] = count
+	return {"dry_run": int(dry_run), "changed": changed}
+
+
 def guard_repayment_account(doc, method=None):
 	"""Loan Repayment validate: money received on a converted loan must go to a bank or cash account.
 
@@ -478,8 +505,9 @@ def _application(row, customer, items):
 	if existing:
 		return existing, False
 	values = {f: row.get(f) for f in APPLICATION_FIELDS if row.get(f) not in (None, "")}
+	full_name = frappe.db.get_value("Customer", customer, "customer_name") or customer
 	doc = frappe.get_doc(dict(values, doctype="Loan Application", company=s.COMPANY, applicant_type="Customer",
-		applicant=customer, loan_product=PRODUCT, rate_of_interest=0, is_term_loan=1, custom_hp_converted=1,
+		applicant=customer, applicant_name=full_name, custom_customer_full_name=full_name, loan_product=PRODUCT, rate_of_interest=0, is_term_loan=1, custom_hp_converted=1,
 		status="Approved", workflow_state=APPLICATION_STATE, docstatus=1,
 		custom_flexi_purchase_items=[{k: i.get(k) for k in ("product_description", "quantity", "unit_price", "total_amount")} for i in items]))
 	doc.set_new_name()
@@ -500,7 +528,9 @@ def _loan(row, customer, application, items):
 		return existing.name, existing.docstatus, False
 	values = {f: row.get(f) for f in LOAN_FIELDS if row.get(f) not in (None, "")}
 	values.pop("review_reason", None)
+	full_name = frappe.db.get_value("Customer", customer, "customer_name") or customer
 	doc = frappe.get_doc(dict(values, doctype="Loan", company=s.COMPANY, applicant_type="Customer", applicant=customer,
+		applicant_name=full_name, custom_customer_full_name=full_name,
 		loan_product=PRODUCT, rate_of_interest=0, is_imported=1, custom_hp_converted=1, custom_hp_application=application,
 		custom_hp_review_reason=row.get("review_reason") or None,
 		loan_import_details=[{

@@ -1,5 +1,11 @@
 # Comfort Homes — Changelog
 
+## 0.0.7.dev18 — Converted loans: customer name in list views
+
+- Converted loans and applications now carry Customer Full Name and Applicant Name (from the Customer) when loaded, so they show in the Loan and Loan Application lists.
+- `hp_conversion.fill_converted_names(dry_run)` (System Manager, POST) fills both fields on converted records loaded before dev18. Display fields only; no amounts, dates or GL touched.
+- Install only (no fixture changes).
+
 ## 0.0.7.dev17 — Conversion: paid-ahead timing
 
 - Found in the full devcom dry run: on a paid-ahead loan with an instalment due on the migration date, Lending's Advance Payment reschedule kept that instalment in the remaining schedule although the advance had paid it (risk of billing it twice).

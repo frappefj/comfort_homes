@@ -285,3 +285,14 @@ def test_dev16_sales_person_and_no_invoice_gate():
 	names = [x.get("fieldname") for x in web]
 	assert names.index("custom_flexi_sales_person") == names.index("custom_flexi_purchase_items") + 1
 	assert "_require_invoice(doc)" not in (ROOT / "hp_lending" / "hp_workflow.py").read_text()
+
+
+def test_dev18_loader_sets_customer_full_name(env, monkeypatch):
+	f, module, created = _conversion(env, monkeypatch)
+	base = f.db.get_value.side_effect
+	f.db.get_value = Mock(side_effect=lambda dt, flt=None, fn=None, *a, **k: "Nazil Khan" if dt == "Customer" else (None if dt == "Loan" else base(dt, flt, fn)))
+	doc = Mock(); doc.docstatus = 0; doc.name = "LOAN-9"
+	f.get_doc = Mock(side_effect=lambda values, *a: (created.append(values), doc)[1])
+	module._loan({"custom_hp_myob_invoice": "INV1", "load_as": "Draft", "imp_disbursement_date": "2025-07-02",
+		"imp_disbursed_amount": 100}, "Nazil Khan", "APP-1", [])
+	assert created[-1]["custom_customer_full_name"] == "Nazil Khan" and created[-1]["applicant_name"] == "Nazil Khan"
