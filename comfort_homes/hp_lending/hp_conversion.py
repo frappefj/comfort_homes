@@ -526,6 +526,36 @@ def _iso(value, key=None):
 	return value
 
 
+def _load_rows(rows):
+	"""Load contracts; each is its own savepoint.  Returns one result per row (never raises for a row)."""
+	results = []
+	for row in rows:
+		ref = row.get("custom_hp_myob_invoice")
+		base = {"invoice": ref, "hp_account": (row.get("customer") or {}).get("custom_ch_account_reference_no"),
+			"requested": row.get("load_as"), "myob_balance": row.get("custom_hp_opening_outstanding"),
+			"review_reason": row.get("review_reason")}
+		if row.get("load_as") not in ("Submit", "Draft"):
+			results.append(dict(base, ok=False, outcome="Held", error=row.get("review_reason") or "held by the extraction"))
+			continue
+		if str(base["hp_account"] or "").startswith("*"):
+			results.append(dict(base, ok=False, outcome="Held", error="No MYOB customer card: fix the card in MYOB and re-run the extraction"))
+			continue
+		frappe.db.savepoint("hp_conversion_row")
+		try:
+			customer, c_new = _customer(row["customer"])
+			application, a_new = _application(row["application"], customer, row.get("items") or [])
+			loan, docstatus, l_new = _loan(row, customer, application, row.get("items") or [])
+			check = verify_loan(loan) if docstatus == 1 else None
+			outcome = ("Submitted" if docstatus == 1 else "Draft") if l_new else "Already loaded"
+			results.append(dict(base, ok=True, outcome=outcome, customer=customer, application=application, loan=loan,
+				docstatus=docstatus, created={"customer": c_new, "application": a_new, "loan": l_new}, verify=check))
+		except Exception as e:
+			frappe.db.rollback(save_point="hp_conversion_row")
+			frappe.clear_messages()
+			results.append(dict(base, ok=False, outcome="Failed", error=str(e)[:500]))
+	return results
+
+
 @frappe.whitelist(methods=["POST"])
 def load_batch(payload, dry_run=1):
 	"""Load converted contracts.  ``payload`` = {"loans": [rows of file 03 with "customer" (file 01 row),
@@ -535,22 +565,91 @@ def load_batch(payload, dry_run=1):
 	if PRODUCT not in (frappe.get_all("Loan Product", pluck="name") or []):
 		frappe.throw(_("Run setup_conversion first: Loan Product {0} is missing.").format(PRODUCT))
 	data = _iso(json.loads(payload) if isinstance(payload, str) else payload)
-	results = []
-	for row in data.get("loans") or []:
-		ref = row.get("custom_hp_myob_invoice")
-		frappe.db.savepoint("hp_conversion_row")
-		try:
-			customer, c_new = _customer(row["customer"])
-			application, a_new = _application(row["application"], customer, row.get("items") or [])
-			loan, docstatus, l_new = _loan(row, customer, application, row.get("items") or [])
-			check = verify_loan(loan) if docstatus == 1 else None
-			results.append({"invoice": ref, "ok": True, "customer": customer, "application": application, "loan": loan,
-				"docstatus": docstatus, "created": {"customer": c_new, "application": a_new, "loan": l_new}, "verify": check})
-		except Exception as e:
-			frappe.db.rollback(save_point="hp_conversion_row")
-			frappe.clear_messages()
-			results.append({"invoice": ref, "ok": False, "error": str(e)[:500]})
+	results = _load_rows(data.get("loans") or [])
 	if int(dry_run):
 		frappe.db.rollback()
 	return {"dry_run": int(dry_run), "ok": sum(1 for r in results if r["ok"]), "failed": sum(1 for r in results if not r["ok"]),
 		"results": results}
+
+
+# ---------------------------------------------------------------------------
+# File loader (dev16): the whole extraction in one attached file, run in the background
+# ---------------------------------------------------------------------------
+
+PROGRESS_KEY = "hp_conversion_progress"
+REPORT_COLUMNS = ("outcome", "invoice", "hp_account", "customer", "loan", "application", "requested", "myob_balance",
+	"devcom_pending", "future_schedule", "overdue", "dpd", "npa", "check", "review_reason", "error")
+
+
+@frappe.whitelist(methods=["POST"])
+def load_from_file(file_url, dry_run=1, batch_size=50):
+	"""Queue the load of a payload file attached in devcom (File, private).  Progress: conversion_status()."""
+	frappe.only_for("System Manager")
+	if PRODUCT not in (frappe.get_all("Loan Product", pluck="name") or []):
+		frappe.throw(_("Run setup_conversion first: Loan Product {0} is missing.").format(PRODUCT))
+	if not frappe.db.exists("File", {"file_url": file_url}):
+		frappe.throw(_("No attached file {0}.").format(file_url))
+	frappe.cache().set_value(PROGRESS_KEY, {"state": "queued", "file_url": file_url, "dry_run": int(dry_run)})
+	frappe.enqueue("comfort_homes.hp_lending.hp_conversion.run_file_load", queue="long", timeout=4 * 3600,
+		file_url=file_url, dry_run=int(dry_run), batch_size=int(batch_size), user=frappe.session.user)
+	return {"queued": True, "file_url": file_url, "dry_run": int(dry_run)}
+
+
+@frappe.whitelist()
+def conversion_status():
+	frappe.only_for("System Manager")
+	return {"progress": frappe.cache().get_value(PROGRESS_KEY),
+		"reports": frappe.get_all("File", filters={"file_name": ["like", "hp_conversion_%"]},
+			fields=["file_name", "file_url", "creation"], order_by="creation desc", limit_page_length=10)}
+
+
+def _report_row(result):
+	v = result.get("verify") or {}
+	return {"outcome": result.get("outcome"), "invoice": result.get("invoice"), "hp_account": result.get("hp_account"),
+		"customer": result.get("customer"), "loan": result.get("loan"), "application": result.get("application"),
+		"requested": result.get("requested"), "myob_balance": result.get("myob_balance"),
+		"devcom_pending": v.get("pending_principal"), "future_schedule": v.get("future_schedule"), "overdue": v.get("overdue"),
+		"dpd": v.get("dpd"), "npa": v.get("npa"),
+		"check": ("OK" if v.get("ok") else "; ".join(v.get("problems") or [])) if v else "",
+		"review_reason": result.get("review_reason"), "error": result.get("error")}
+
+
+def run_file_load(file_url, dry_run=1, batch_size=50, user=None):
+	"""Background job: batches of ``batch_size``; a live run commits each batch, a dry run rolls each back.
+	Writes hp_conversion_<dry|live>_<time>.csv (one line per contract, with outcome and checks)."""
+	import csv
+	import io
+	from frappe.utils import now_datetime
+	if user:
+		frappe.set_user(user)
+	content = frappe.get_doc("File", {"file_url": file_url}).get_content()
+	data = _iso(json.loads(content))
+	rows = data.get("loans") or []
+	report, total = [], len(rows)
+	for start in range(0, total, int(batch_size)):
+		batch = rows[start:start + int(batch_size)]
+		results = _load_rows(batch)
+		if int(dry_run):
+			frappe.db.rollback()
+		else:
+			frappe.db.commit()
+		report.extend(_report_row(r) for r in results)
+		frappe.cache().set_value(PROGRESS_KEY, {"state": "running", "file_url": file_url, "dry_run": int(dry_run),
+			"done": min(start + len(batch), total), "total": total,
+			"failed": sum(1 for r in report if r["outcome"] == "Failed")})
+	buffer = io.StringIO()
+	writer = csv.DictWriter(buffer, fieldnames=REPORT_COLUMNS)
+	writer.writeheader()
+	writer.writerows(report)
+	stamp = now_datetime().strftime("%Y%m%d_%H%M%S")
+	name = f"hp_conversion_{'dry' if int(dry_run) else 'live'}_{stamp}.csv"
+	saved = frappe.get_doc({"doctype": "File", "file_name": name, "is_private": 1, "content": buffer.getvalue()})
+	saved.insert(ignore_permissions=True)
+	frappe.db.commit()
+	counts = {}
+	for r in report:
+		counts[r["outcome"]] = counts.get(r["outcome"], 0) + 1
+	counts["Check failed"] = sum(1 for r in report if r["check"] not in ("", "OK"))
+	frappe.cache().set_value(PROGRESS_KEY, {"state": "finished", "file_url": file_url, "dry_run": int(dry_run),
+		"done": total, "total": total, "counts": counts, "report": saved.file_url})
+	return saved.file_url

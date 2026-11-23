@@ -1,5 +1,14 @@
 # Comfort Homes — Changelog
 
+## 0.0.7.dev16 — Conversion file loader; CHD invoice gate removed; Sales Person
+
+- **File loader for the full MYOB load.** `hp_conversion.load_from_file(file_url, dry_run, batch_size=50)` (System Manager, POST) reads the extraction's `14_devcom_load_payload.json` attached in devcom as a private File, and loads it in the background in batches of 50 (a live run commits each batch; a dry run rolls each back). Progress and finished reports: `conversion_status()`.
+- **Transfer report.** Each run writes `hp_conversion_<dry|live>_<time>.csv` (private File): one line per contract with outcome (Submitted, Draft, Already loaded, Held, Failed), loan, application, customer, MYOB balance, devcom pending principal, future schedule, overdue, DPD, NPA, check result, review reason and the error for anything that did not go through.
+- Contracts with no MYOB customer card (account "*None") are never loaded: outcome Held, so ten different customers cannot end up on one customer record. Rows the extraction marks Hold are reported the same way.
+- **CHD invoice gate removed.** Active Loan Account / Closed no longer wait for submitted CHD Purchase Invoices. CHD still invoices per loan with its monthly statement; Accounts enters the Purchase Invoice from the LPO when reconciling (Dr 1180 / Cr 2111) and pays by Payment Entry. LPO, delivery docket and disbursement checks are unchanged.
+- **Sales Person** (free text, optional) on the Loan Application under Quotation Reference, and on the public web form after the purchase items.
+- Needs install + migrate (custom field and web form are fixtures). Not site-tested.
+
 ## 0.0.7.dev15 — Conversion fix: paid-to-date on converted loans
 
 - Found in the devcom test load: Lending's native import records no payments made before the migration date, so a loan's paid-to-date started at zero. Payoff quotes, closure and any reschedule then worked from the full original amount; on the paid-ahead test loan the Advance Payment reschedule left a ~1,500 final instalment.

@@ -85,8 +85,8 @@ def validate_progress(doc, method=None):
         frappe.throw('Submit the approved linked Purchase Order before progressing the LPO')
     if target == 'Delivered - Awaiting Documents' and not doc.get('custom_hp_delivery_docket'):
         frappe.throw('Attach the supplier delivery docket before confirming delivery')
-    if target in ('Active Loan Account', 'Closed'):
-        _require_invoice(doc)
+    # dev16: no per-application CHD invoice gate. CHD invoices per loan arrive with the monthly statement;
+    # Accounts enters the Purchase Invoice from the LPO when reconciling (_require_invoice kept for reference).
     if target == 'Closed' and loan.status != 'Closed':
         frappe.throw('Close the native Loan through Lending before closing the application')
 

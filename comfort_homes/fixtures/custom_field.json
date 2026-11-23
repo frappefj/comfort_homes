@@ -12348,5 +12348,16 @@
   "read_only": 1,
   "no_copy": 1,
   "depends_on": "eval:doc.custom_hp_converted"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Loan Application-custom_flexi_sales_person",
+  "dt": "Loan Application",
+  "fieldname": "custom_flexi_sales_person",
+  "label": "Sales Person",
+  "fieldtype": "Data",
+  "insert_after": "custom_flexi_quotation_number",
+  "allow_on_submit": 1,
+  "description": "Free text: who made the sale (for reference)."
  }
 ]

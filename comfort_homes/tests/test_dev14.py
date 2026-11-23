@@ -254,3 +254,33 @@ def test_loader_types_numbers_but_keeps_identifiers_as_text(env, monkeypatch):
 		"customer": {"mobile_no": "9120393", "custom_ch_account_reference_no": "GRA2026085"}})
 	assert row == {"loan_amount": 4261.55, "repayment_periods": 24, "custom_tin_number": "22988906",
 		"customer": {"mobile_no": "9120393", "custom_ch_account_reference_no": "GRA2026085"}}
+
+
+def test_dev16_rows_without_card_or_held_are_not_loaded(env, monkeypatch):
+	f, module, created = _conversion(env, monkeypatch)
+	rows = [{"custom_hp_myob_invoice": "INV1", "load_as": "Hold", "review_reason": "CARD_UNRESOLVED",
+			"customer": {"custom_ch_account_reference_no": "*None"}},
+		{"custom_hp_myob_invoice": "INV2", "load_as": "Submit", "customer": {"custom_ch_account_reference_no": "*None"}}]
+	results = module._load_rows(rows)
+	assert [r["outcome"] for r in results] == ["Held", "Held"] and created == []
+	assert "customer card" in results[1]["error"]
+
+
+def test_dev16_failed_row_is_reported_not_raised(env, monkeypatch):
+	f, module, _ = _conversion(env, monkeypatch)
+	f.clear_messages = Mock()
+	monkeypatch.setattr(module, "_customer", Mock(side_effect=RuntimeError("TIN already used")))
+	(result,) = module._load_rows([{"custom_hp_myob_invoice": "INV3", "load_as": "Submit",
+		"customer": {"custom_ch_account_reference_no": "GRA1"}}])
+	assert result["outcome"] == "Failed" and "TIN already used" in result["error"]
+	assert module._report_row(dict(result, verify={"ok": False, "problems": ["x"], "pending_principal": 1}))["check"] == "x"
+
+
+def test_dev16_sales_person_and_no_invoice_gate():
+	fields = _fields()
+	sp = fields["Loan Application-custom_flexi_sales_person"]
+	assert sp["fieldtype"] == "Data" and sp["insert_after"] == "custom_flexi_quotation_number" and not sp.get("reqd")
+	web = json.loads((ROOT / "fixtures" / "web_form.json").read_text())[0]["web_form_fields"]
+	names = [x.get("fieldname") for x in web]
+	assert names.index("custom_flexi_sales_person") == names.index("custom_flexi_purchase_items") + 1
+	assert "_require_invoice(doc)" not in (ROOT / "hp_lending" / "hp_workflow.py").read_text()

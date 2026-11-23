@@ -168,12 +168,13 @@ def test_disbursement_requires_one_native_submission_and_booking_journal(env,mon
     assert m._require_disbursed(application()) is loan
 
 
-def test_active_account_requires_native_submitted_invoice(env,monkeypatch):
+def test_active_account_no_longer_waits_for_chd_invoice(env,monkeypatch):
+    # dev16: CHD invoices come with the monthly statement; Active Loan Account does not wait for them.
     f,m=workflow(env)
     monkeypatch.setattr(m,'_require_disbursed',lambda a:Row(status='Disbursed'))
     monkeypatch.setattr(m,'_purchase_order',lambda a:Row(docstatus=1))
     f.get_all.return_value=[]
-    with pytest.raises(ValueError,match='Submitted CHD invoices'):m.validate_progress(application('Active Loan Account'))
+    m.validate_progress(application('Active Loan Account'))
 
 
 def test_lpo_native_submit_is_role_checked_and_idempotent(env,monkeypatch):
