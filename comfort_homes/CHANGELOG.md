@@ -1,5 +1,14 @@
 # Comfort Homes — Changelog
 
+## 0.0.7.dev15 — Conversion fix: paid-to-date on converted loans
+
+- Found in the devcom test load: Lending's native import records no payments made before the migration date, so a loan's paid-to-date started at zero. Payoff quotes, closure and any reschedule then worked from the full original amount; on the paid-ahead test loan the Advance Payment reschedule left a ~1,500 final instalment.
+- A converted loan now also posts, on submit and before any paid-ahead amount, an imported Loan Repayment (no GL, no schedule change) for the principal paid before cut-over against instalments already due. Lending's pending principal then equals the MYOB balance.
+- `repair_converted(loans, dry_run)` (System Manager, POST) adds that record to loans submitted under dev14; where the dev14 paid-ahead repayment rescheduled from the wrong principal, it cancels it (with its reschedule and the demand it raised on the cut-over date) and posts it again.
+- `verify_loan` (used by the loader and repair results): pending principal vs MYOB balance (+ opening penalty) and future schedule + overdue vs MYOB balance, with rows left, last date, DPD and NPA.
+- Loader converts the extraction's text numbers to numbers (identifiers such as TIN, phone and account numbers stay text).
+- Needs install (no migrate needed: no fixture changes). Not site-tested beyond the dev14 test load.
+
 ## 0.0.7.dev14 — MYOB conversion on Lending's import route
 
 - Converted MYOB contracts load as native **imported** Loans (`is_imported`, migration date = MYOB cut-over 20-11-2026) on the original contract schedule. Opening principal = the part overdue at cut-over (Lending's meaning). Lending posts the opening receivable itself: Dr 1101 / Cr 1910 Temporary Opening.

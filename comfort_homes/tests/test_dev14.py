@@ -172,14 +172,28 @@ def test_converted_submit_posts_opening_position_once(env, monkeypatch):
 	assert created == []
 
 
-def test_paid_ahead_goes_through_native_advance_payment_into_1910(env, monkeypatch):
+def test_paid_to_date_then_paid_ahead(env, monkeypatch):
 	f, module, created = _conversion(env, monkeypatch)
+	f.flags.in_import = None
+	seen = []
+	real = f.get_doc.side_effect
+	f.get_doc = Mock(side_effect=lambda values, *a: (seen.append(getattr(f.flags, "in_import", None)), real(values))[1])
 	module.on_loan_submit(_loan(custom_hp_opening_unearned=0, custom_hp_opening_penalty=0, custom_hp_opening_fees=0,
-		custom_hp_opening_advance=55.25))
-	(repayment,) = created
-	assert repayment["doctype"] == "Loan Repayment" and repayment["repayment_type"] == "Advance Payment"
-	assert repayment["payment_account"] == "1910 - ACC" and repayment["amount_paid"] == 55.25
-	assert repayment["reference_number"] == "HP-OPEN-ADV-LOAN-1" and repayment["value_date"].startswith("2026-11-20")
+		loan_amount=2248.53, custom_hp_opening_outstanding=608.78, custom_hp_opening_advance=126.35))
+	paid, advance = created
+	# paid before cut-over against instalments due = 2248.53 - 608.78 - 126.35
+	assert paid["is_imported"] == 1 and paid["amount_paid"] == paid["principal_amount_paid"] == 1513.40
+	assert paid["reference_number"] == "HP-OPEN-PAID-LOAN-1" and paid["repayment_type"] == "Normal Repayment"
+	assert advance["repayment_type"] == "Advance Payment" and advance["amount_paid"] == 126.35
+	assert advance["payment_account"] == "1910 - ACC" and advance["reference_number"] == "HP-OPEN-ADV-LOAN-1"
+	assert f.flags.in_import is None  # restored after the imported repayment
+
+
+def test_paid_to_date_skipped_for_brand_new_balance(env, monkeypatch):
+	_, module, created = _conversion(env, monkeypatch)
+	module.on_loan_submit(_loan(custom_hp_opening_unearned=0, custom_hp_opening_penalty=0, custom_hp_opening_fees=0,
+		loan_amount=1000, custom_hp_opening_outstanding=1000, custom_hp_opening_advance=0))
+	assert created == []
 
 
 def test_arrears_demand_is_dated_at_oldest_unpaid_instalment(env, monkeypatch):
@@ -232,3 +246,11 @@ def test_conversion_report_registered():
 def test_loader_normalises_extraction_dates(env, monkeypatch):
 	_, module, _ = _conversion(env, monkeypatch)
 	assert module._iso({"a": "20-11-2026", "b": ["02-07-2025", "x"], "c": 3}) == {"a": "2026-11-20", "b": ["2025-07-02", "x"], "c": 3}
+
+
+def test_loader_types_numbers_but_keeps_identifiers_as_text(env, monkeypatch):
+	_, module, _ = _conversion(env, monkeypatch)
+	row = module._iso({"loan_amount": "4261.55", "repayment_periods": "24", "custom_tin_number": "22988906",
+		"customer": {"mobile_no": "9120393", "custom_ch_account_reference_no": "GRA2026085"}})
+	assert row == {"loan_amount": 4261.55, "repayment_periods": 24, "custom_tin_number": "22988906",
+		"customer": {"mobile_no": "9120393", "custom_ch_account_reference_no": "GRA2026085"}}

@@ -17,6 +17,8 @@ How a converted contract is held
     unearned interest     Dr 1910 / Cr 2013  (Journal Entry "Opening Balance")
     unpaid default int.   Loan Balance Adjustment Debit -> 2015 (HP-PEN-<loan>-OPEN)
     other unpaid fees     Dr 1120 (customer) / Cr 1910
+    paid before cut-over  imported Loan Repayment (no GL): Lending's paid-to-date, so payoff,
+                          closure and any reschedule start from the MYOB balance
     paid ahead            Advance Payment repayment received into 1910
     overdue since         the imported arrears demand is dated at the oldest unpaid
                           instalment, so days past due and NPA continue from MYOB.
@@ -114,6 +116,7 @@ def on_loan_submit(doc, method=None):
 		_post_opening_unearned(doc)
 		_post_opening_penalty(doc)
 		_post_opening_fees(doc)
+		_post_opening_paid(doc)
 		_post_opening_advance(doc)
 		_date_opening_arrears(doc)
 	finally:
@@ -170,6 +173,35 @@ def _post_opening_fees(doc):
 	])
 
 
+def paid_against_due(doc):
+	"""Principal paid before cut-over against instalments already due: loan amount - MYOB balance - paid ahead."""
+	return m.money(m.d(doc.get("loan_amount")) - m.money(doc.get("custom_hp_opening_outstanding")) - m.money(doc.get("custom_hp_opening_advance")))
+
+
+def _post_opening_paid(doc):
+	"""Lending's native import records no payments before the migration date.  An imported repayment (no GL,
+	no schedule change) sets total_principal_paid, which payoff, closure and reschedules read."""
+	amount = paid_against_due(doc)
+	key = f"HP-OPEN-PAID-{doc.name}"
+	if amount <= 0 or frappe.db.exists("Loan Repayment", {"against_loan": doc.name, "reference_number": key, "docstatus": 1}):
+		return
+	disbursement = frappe.db.get_value("Loan Disbursement", {"against_loan": doc.name, "docstatus": 1, "is_imported": 1}, "name")
+	repayment = frappe.get_doc({
+		"doctype": "Loan Repayment", "against_loan": doc.name, "applicant_type": "Customer", "applicant": doc.applicant,
+		"company": doc.company, "loan_product": doc.loan_product, "loan_disbursement": disbursement,
+		"repayment_type": "Normal Repayment", "is_imported": 1, "posting_date": f"{doc.migration_date} 00:00:00",
+		"value_date": f"{doc.migration_date} 00:00:00", "amount_paid": float(amount), "principal_amount_paid": float(amount),
+		"payment_account": _account(OPENING_ACCOUNT_NUMBER), "reference_number": key, "reference_date": doc.migration_date,
+	})
+	previous = getattr(frappe.flags, "in_import", None)
+	frappe.flags.in_import = True  # Lending's own path for imported repayments: no allocation, no GL
+	try:
+		repayment.insert(ignore_permissions=True)
+		repayment.submit()
+	finally:
+		frappe.flags.in_import = previous
+
+
 def _post_opening_advance(doc):
 	amount = m.money(doc.get("custom_hp_opening_advance"))
 	key = f"HP-OPEN-ADV-{doc.name}"
@@ -197,6 +229,79 @@ def _date_opening_arrears(doc):
 	from lending.loan_management.doctype.loan.loan import update_days_past_due_in_loans
 	update_days_past_due_in_loans(loan_name=doc.name, posting_date=getdate(), loan_product=doc.loan_product,
 		force_update_dpd_in_loan=True)
+
+
+def verify_loan(name):
+	"""Read-only: what Lending will collect from now on, against the MYOB balance."""
+	loan = frappe.db.get_value("Loan", name, ["loan_amount", "total_principal_paid", "debit_adjustment_amount",
+		"credit_adjustment_amount", "custom_hp_opening_outstanding", "custom_hp_opening_penalty", "days_past_due", "is_npa"], as_dict=True)
+	schedule = frappe.db.get_value("Loan Repayment Schedule", {"loan": name, "docstatus": 1, "status": "Active"}, "name")
+	rows = frappe.get_all("Repayment Schedule", filters={"parent": schedule}, fields=["payment_date", "principal_amount", "demand_generated"],
+		order_by="payment_date asc", limit_page_length=0) if schedule else []
+	future = m.money(sum((m.d(r.principal_amount) for r in rows if not r.demand_generated), m.d(0)))
+	overdue = m.money(frappe.db.sql("""SELECT COALESCE(SUM(outstanding_amount), 0) FROM `tabLoan Demand`
+		WHERE loan = %s AND docstatus = 1 AND demand_type = 'EMI'""", (name,))[0][0])
+	pending = m.money(m.d(loan.loan_amount) + m.d(loan.debit_adjustment_amount) - m.d(loan.credit_adjustment_amount) - m.d(loan.total_principal_paid))
+	expected = m.money(loan.custom_hp_opening_outstanding) + m.money(loan.custom_hp_opening_penalty)
+	collect = future + overdue
+	problems = []
+	if abs(pending - expected) > m.d("0.05"):
+		problems.append(f"pending principal {pending} vs MYOB {expected}")
+	if abs(collect - m.money(loan.custom_hp_opening_outstanding)) > m.d("0.05"):
+		problems.append(f"schedule + overdue {collect} vs MYOB {loan.custom_hp_opening_outstanding}")
+	return {"loan": name, "pending_principal": float(pending), "future_schedule": float(future), "overdue": float(overdue),
+		"rows_left": sum(1 for r in rows if not r.demand_generated), "last_date": str(rows[-1].payment_date) if rows else None,
+		"dpd": loan.days_past_due, "npa": loan.is_npa, "ok": not problems, "problems": problems}
+
+
+@frappe.whitelist(methods=["POST"])
+def repair_converted(loans=None, dry_run=1):
+	"""dev14.1: add the missing paid-to-date record to converted loans submitted under dev14.0.
+
+	Where the dev14.0 paid-ahead repayment rescheduled from the wrong principal, it is cancelled (with its
+	reschedule and the demand it raised) and posted again after the paid-to-date record."""
+	frappe.only_for("System Manager")
+	names = json.loads(loans) if isinstance(loans, str) and loans.startswith("[") else ([loans] if loans else None)
+	filters = {"company": s.COMPANY, "custom_hp_converted": 1, "docstatus": 1}
+	if names:
+		filters["name"] = ["in", names]
+	out = []
+	for name in frappe.get_all("Loan", filters=filters, pluck="name", limit_page_length=0):
+		key = f"HP-OPEN-PAID-{name}"
+		if frappe.db.exists("Loan Repayment", {"against_loan": name, "reference_number": key, "docstatus": 1}):
+			out.append({"loan": name, "actions": [], **verify_loan(name)})
+			continue
+		actions = []
+		doc = frappe.get_doc("Loan", name)
+		advance = frappe.db.get_value("Loan Repayment", {"against_loan": name, "reference_number": f"HP-OPEN-ADV-{name}", "docstatus": 1}, "name")
+		if not int(dry_run):
+			user = frappe.session.user
+			frappe.set_user("Administrator")  # Lending cancels the reschedule as part of the repayment cancel
+			try:
+				if advance:
+					frappe.get_doc("Loan Repayment", advance).cancel()
+					day = str(doc.migration_date)
+					for demand in frappe.get_all("Loan Demand", filters={"loan": name, "docstatus": 1, "is_imported": 0,
+							"demand_type": "EMI", "outstanding_amount": [">", 0],
+							"demand_date": ["between", [f"{day} 00:00:00", f"{day} 23:59:59"]]}, pluck="name"):
+						frappe.get_doc("Loan Demand", demand).cancel()
+						actions.append(f"cancelled demand {demand}")
+					actions.append(f"cancelled {advance}")
+				frappe.flags.hp_conversion = True
+				_post_opening_paid(doc)
+				actions.append("paid-to-date recorded")
+				if advance:
+					_post_opening_advance(frappe.get_doc("Loan", name))
+					actions.append("paid-ahead re-posted")
+			finally:
+				frappe.flags.hp_conversion = None
+				frappe.set_user(user)
+		else:
+			actions = (["cancel " + advance] if advance else []) + ["record paid-to-date " + str(paid_against_due(doc))] + (["re-post paid-ahead"] if advance else [])
+		out.append({"loan": name, "actions": actions, **verify_loan(name)})
+	if int(dry_run):
+		frappe.db.rollback()
+	return out
 
 
 def guard_repayment_account(doc, method=None):
@@ -404,14 +509,20 @@ def _loan(row, customer, application, items):
 	return doc.name, doc.docstatus, True
 
 
-def _iso(value):
-	"""Extraction files use dd-mm-yyyy; the database wants yyyy-mm-dd."""
+TEXT_KEYS = {"custom_tin_number", "mobile_no", "custom_ch_account_reference_no", "custom_flexi_quotation_number",
+	"custom_flexi_hp_account_number", "custom_hp_myob_invoice", "customer_name", "product_description"}
+
+
+def _iso(value, key=None):
+	"""Extraction files use dd-mm-yyyy and text numbers; the database wants yyyy-mm-dd and numbers."""
 	if isinstance(value, dict):
-		return {k: _iso(v) for k, v in value.items()}
+		return {k: _iso(v, k) for k, v in value.items()}
 	if isinstance(value, list):
-		return [_iso(v) for v in value]
+		return [_iso(v, key) for v in value]
 	if isinstance(value, str) and re.fullmatch(r"\d{2}-\d{2}-\d{4}", value):
 		return f"{value[6:]}-{value[3:5]}-{value[:2]}"
+	if isinstance(value, str) and key not in TEXT_KEYS and re.fullmatch(r"-?\d+(\.\d+)?", value):
+		return float(value) if "." in value else int(value)
 	return value
 
 
@@ -432,8 +543,9 @@ def load_batch(payload, dry_run=1):
 			customer, c_new = _customer(row["customer"])
 			application, a_new = _application(row["application"], customer, row.get("items") or [])
 			loan, docstatus, l_new = _loan(row, customer, application, row.get("items") or [])
+			check = verify_loan(loan) if docstatus == 1 else None
 			results.append({"invoice": ref, "ok": True, "customer": customer, "application": application, "loan": loan,
-				"docstatus": docstatus, "created": {"customer": c_new, "application": a_new, "loan": l_new}})
+				"docstatus": docstatus, "created": {"customer": c_new, "application": a_new, "loan": l_new}, "verify": check})
 		except Exception as e:
 			frappe.db.rollback(save_point="hp_conversion_row")
 			frappe.clear_messages()
