@@ -1760,7 +1760,7 @@
     "options": "Company:company:default_currency",
     "placeholder": null,
     "precision": "",
-    "read_only": 0,
+    "read_only": 1,
     "read_only_depends_on": null,
     "reqd": 0,
     "show_in_filter": 0
@@ -1820,7 +1820,7 @@
     "options": "Company:company:default_currency",
     "placeholder": null,
     "precision": "",
-    "read_only": 0,
+    "read_only": 1,
     "read_only_depends_on": null,
     "reqd": 0,
     "show_in_filter": 0
@@ -1880,7 +1880,7 @@
     "options": "Company:company:default_currency",
     "placeholder": null,
     "precision": "",
-    "read_only": 0,
+    "read_only": 1,
     "read_only_depends_on": null,
     "reqd": 0,
     "show_in_filter": 0
@@ -1940,7 +1940,7 @@
     "options": "Company:company:default_currency",
     "placeholder": null,
     "precision": "",
-    "read_only": 0,
+    "read_only": 1,
     "read_only_depends_on": null,
     "reqd": 0,
     "show_in_filter": 0
@@ -2020,7 +2020,7 @@
     "options": "Company:company:default_currency",
     "placeholder": null,
     "precision": "",
-    "read_only": 0,
+    "read_only": 1,
     "read_only_depends_on": null,
     "reqd": 0,
     "show_in_filter": 0
@@ -2040,7 +2040,7 @@
     "options": "Company:company:default_currency",
     "placeholder": null,
     "precision": "",
-    "read_only": 0,
+    "read_only": 1,
     "read_only_depends_on": null,
     "reqd": 0,
     "show_in_filter": 0
@@ -2080,7 +2080,7 @@
     "options": null,
     "placeholder": null,
     "precision": "",
-    "read_only": 0,
+    "read_only": 1,
     "read_only_depends_on": null,
     "reqd": 0,
     "show_in_filter": 0
@@ -2100,7 +2100,7 @@
     "options": "Company:company:default_currency",
     "placeholder": null,
     "precision": "",
-    "read_only": 0,
+    "read_only": 1,
     "read_only_depends_on": null,
     "reqd": 0,
     "show_in_filter": 0
@@ -2120,7 +2120,7 @@
     "options": null,
     "placeholder": null,
     "precision": "",
-    "read_only": 0,
+    "read_only": 1,
     "read_only_depends_on": null,
     "reqd": 0,
     "show_in_filter": 0
@@ -2140,7 +2140,7 @@
     "options": "Company:company:default_currency",
     "placeholder": null,
     "precision": "",
-    "read_only": 0,
+    "read_only": 1,
     "read_only_depends_on": null,
     "reqd": 0,
     "show_in_filter": 0
@@ -2160,7 +2160,7 @@
     "options": null,
     "placeholder": null,
     "precision": "",
-    "read_only": 0,
+    "read_only": 1,
     "read_only_depends_on": null,
     "reqd": 0,
     "show_in_filter": 0
@@ -2180,7 +2180,7 @@
     "options": "Company:company:default_currency",
     "placeholder": null,
     "precision": "",
-    "read_only": 0,
+    "read_only": 1,
     "read_only_depends_on": null,
     "reqd": 0,
     "show_in_filter": 0
@@ -2200,7 +2200,7 @@
     "options": null,
     "placeholder": null,
     "precision": "",
-    "read_only": 0,
+    "read_only": 1,
     "read_only_depends_on": null,
     "reqd": 0,
     "show_in_filter": 0
@@ -2220,7 +2220,7 @@
     "options": "Company:company:default_currency",
     "placeholder": null,
     "precision": "",
-    "read_only": 0,
+    "read_only": 1,
     "read_only_depends_on": null,
     "reqd": 0,
     "show_in_filter": 0
@@ -2380,7 +2380,7 @@
     "options": "\nRepay Fixed Amount per Period\nRepay Over Number of Periods",
     "placeholder": null,
     "precision": "",
-    "read_only": 0,
+    "read_only": 1,
     "read_only_depends_on": null,
     "reqd": 0,
     "show_in_filter": 0

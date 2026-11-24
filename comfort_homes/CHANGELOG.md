@@ -1,5 +1,15 @@
 # Comfort Homes — Changelog
 
+## 0.0.7.dev20 — Loan Application layout, repayment method lock, bank matching
+
+**Needs install + migrate** (fixtures: custom fields, property setters, web form).
+
+- **Loan Application Desk layout.** About 60 fields (Deposit Amount, fees, terms, instalments, First Instalment Date, approvals, Sales Person, HP Account / Quotation No, Workflow Status) had fallen into the Connections tab: three custom fields were anchored to fields that do not exist (`custom_flexi_store_location`, `custom_flexi_workflow_state`) and a Customize Form save on 24-11 froze that order. The app now ships the full field order as a Property Setter (`Loan Application-main-field_order`), following the web form's pages: Applicant · Applicant Profile · Income & Living Expenses · Debt Service Assessment · Purchase & Finance · Approval & Forms (new tab) · Documents · Declaration & CIRA · Connections last. Broken anchors corrected; new collapsible "MYOB Conversion" section (converted applications only); hidden `custom_customer_documents_section` placed where it hides nothing. Section labels aligned with the web form; "Installment" spelt "Instalment"; `applicant_name` labelled Full Name. No fieldnames, data or workflow changed. A migrate replaces any Loan Application layout changes made in Customize Form.
+- **Repayment method locked.** Flexi draft applications are always "Repay Over Number of Periods" (set on save; read-only with that default in Desk and on the web form). Converted MYOB applications and submitted applications are not touched. "Repay Fixed Amount per Period" stays available on the Loan, where Lending uses it for advance-payment restructures.
+- **Web form:** calculated figures are read-only (Total Purchase Value, Value less Deposit, Admin Fee, Total Value to be Financed, Term Charges, Total Repayment Value, instalment counts and amounts). Applicant inputs (deposit, fees, terms, preference) unchanged; the server still recalculates every figure on save.
+- **Loan Bank Reconciliation.** Matches narrations typed with a space or dash after the prefix ("LTK 2026078", "DEP TRF GRA 2026125") and loosely typed application references ("ACC- LOAP 2026-00310", "ACCLOAP202600264", "Acc - Loap - 2026 - 00166"); the row keeps the bank's original description. A receipt that matches a repayment already submitted on the same loan, date and amount from a different statement row is marked "Possible Duplicate of LM-REP-…" and left unticked; it is posted only if someone ticks it.
+- Unchanged: posting, GL, conversion, scheduled jobs, protected HP files.
+
 ## 0.0.7.dev19 — Loan Bank Reconciliation: match on HP account number
 
 - Found in the devcom import test (24-11): narrations carrying the customer's HP account number (e.g. NAM202501) were Unmatched, because matching only looked at Card ID and TIN, and converted MYOB customers hold the HP account number in `custom_ch_account_reference_no` (422 of them have only a placeholder TIN).

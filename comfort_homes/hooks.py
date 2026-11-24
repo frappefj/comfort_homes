@@ -101,6 +101,14 @@ fixtures = [
 			"Loan Application-custom_flexi_payment_period-options",
 			"Loan Application-applicant_name-label",
 			"Loan Application-applicant_name-insert_after",
+			"Loan Application-repayment_method-read_only",
+			"Loan Application-repayment_method-default",
+			"Loan Application-applicant_contact_info_section-label",
+			"Loan Application-applicant_details_section-label",
+			"Loan Application-applicant_address_details_section-label",
+			"Loan Application-section_break_4-label",
+			"Loan Application-repayment_info-label",
+			"Loan Application-main-field_order",
 		]]],
 	},
 	{
@@ -234,6 +242,7 @@ doc_events = {
 		"before_submit": ["comfort_homes.loan_application_workflow.calculate_financials", "comfort_homes.document_controls.validate_application", "comfort_homes.hp_lending.hp_workflow.validate_progress"],
 		"before_insert": "comfort_homes.loan_application_workflow.validate_public_application_not_existing_customer",
 		"before_validate": [
+			"comfort_homes.loan_mapping.enforce_repayment_method",
 			"comfort_homes.origination.resolve_loan_purpose",
 			"comfort_homes.loan_application_workflow.calculate_financials",
 			"comfort_homes.co_applicant.validate_existing_co_applicant",

@@ -123,6 +123,24 @@ def _copy_purchase_items(target, source):
 		)
 
 
+REPAYMENT_METHOD = "Repay Over Number of Periods"
+
+
+def enforce_repayment_method(doc, method=None):
+	"""dev20: a Flexi HP application is always repaid over the contract's number of periods.
+
+	The app derives the instalment count from Terms (Months) and the repayment preference;
+	"Repay Fixed Amount per Period" would bypass that.  Converted MYOB records and submitted
+	applications are left as they are."""
+	from comfort_homes.hp_lending.hp_settings import COMPANY
+	if doc.docstatus != 0 or doc.get("custom_hp_converted"):
+		return
+	if doc.get("company") and doc.company != COMPANY:
+		return
+	if doc.get("repayment_method") != REPAYMENT_METHOD:
+		doc.repayment_method = REPAYMENT_METHOD
+
+
 def apply_loan_application_values(doc, method=None):
 	"""Set Loan terms when a Loan is first created from a Loan Application."""
 	if not doc.is_new() or not doc.loan_application:

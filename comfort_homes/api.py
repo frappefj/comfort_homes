@@ -18,6 +18,31 @@ LOAN_APPLICATION_PATTERN = re.compile(r"\bACC-LOAP-\d{4}-\d+\b", re.IGNORECASE)
 HP_ACCOUNT_PATTERN = re.compile(r"\b\d{4}-\d{3,6}\b")
 # Every prefixed HP account / Card ID in a narration (extract_card_id returns only the first).
 CARD_ID_PATTERN = re.compile(r"\b(?:" + "|".join(CARD_PREFIXES) + r")[A-Z0-9]{4,}\b")
+# dev20: narrations typed by customers - "LTK 2026078", "ACC- LOAP 2026-00310", "ACCLOAP202600264".
+SPACED_CARD_ID_PATTERN = re.compile(r"\b(" + "|".join(CARD_PREFIXES) + r")[ \-]+(\d{6,})\b", re.IGNORECASE)
+LOOSE_APPLICATION_PATTERN = re.compile(r"\bACC[\s\-]*LOA[PD][\s\-]*(\d{4})[\s\-]*(\d{3,6})\b", re.IGNORECASE)
+
+
+def normalise_narration(description):
+	"""Join a Card ID / HP account written with a space or dash after its prefix, and rewrite
+	loosely typed application references to ACC-LOAP-YYYY-NNNNN.  Used for matching only;
+	the statement row keeps the bank's original description."""
+	text = str(description or "")
+	text = LOOSE_APPLICATION_PATTERN.sub(lambda m: f"ACC-LOAP-{m.group(1)}-{m.group(2)}", text)
+	return SPACED_CARD_ID_PATTERN.sub(lambda m: m.group(1).upper() + m.group(2), text)
+
+
+def _possible_duplicate(loan, transaction_date, amount, key):
+	"""A submitted repayment already on this loan for the same day and amount from a different
+	statement row (for example an overlapping statement export)."""
+	rows = frappe.db.sql(
+		"""SELECT name FROM `tabLoan Repayment`
+		   WHERE against_loan = %s AND docstatus = 1 AND DATE(value_date) = %s
+		   AND ABS(amount_paid - %s) < 0.005 AND IFNULL(reference_number, '') != %s
+		   LIMIT 1""",
+		(loan, transaction_date, amount, key or ""),
+	)
+	return rows[0][0] if rows else ""
 # Customer fields that each hold an exact, per-customer identifier a bank narration can carry.
 CUSTOMER_ID_FIELDS = ("custom_card_id", "custom_ch_account_reference_no", "custom_tin_number")
 ALIASES = {
@@ -421,11 +446,17 @@ def import_statement(doc, mapping):
 			amount = _amount(row.get(mapping.get("credit"))) if mapping.get("credit") else _amount(row.get(mapping.get("amount")))
 			if not transaction_date or not description or amount <= 0:
 				continue
-			card_id = extract_card_id(description)
-			customer, loan, count = _customer_and_loan(description, card_id)
+			matching_text = normalise_narration(description)
+			card_id = extract_card_id(matching_text)
+			customer, loan, count = _customer_and_loan(matching_text, card_id)
 			status = "Ready" if loan else "Choose Loan" if customer and count > 1 else "No Disbursed Loan" if customer else "Unmatched"
-			ready += int(bool(loan)); review += int(not loan)
-			doc.append("transactions", {"statement_transaction_key": _statement_key(doc.bank_account, statement_hash, table["sheet"], row_index), "transaction_date": transaction_date, "description": description, "amount": amount, "customer_card_id": card_id, "customer": customer, "suggested_loan": loan, "loan": loan, "selected": int(bool(loan)), "status": status})
+			key = _statement_key(doc.bank_account, statement_hash, table["sheet"], row_index)
+			duplicate = _possible_duplicate(loan, transaction_date, amount, key) if loan else ""
+			if duplicate:
+				status = f"Possible Duplicate of {duplicate}"
+			selected = int(bool(loan) and not duplicate)
+			ready += selected; review += int(not selected)
+			doc.append("transactions", {"statement_transaction_key": key, "transaction_date": transaction_date, "description": description, "amount": amount, "customer_card_id": card_id, "customer": customer, "suggested_loan": loan, "loan": loan, "selected": selected, "status": status})
 			imported += 1
 	doc.update({"status": "Imported", "imported_transactions": imported, "ready_transactions": ready, "review_transactions": review})
 	doc.save()
