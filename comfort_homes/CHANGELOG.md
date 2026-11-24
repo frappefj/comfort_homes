@@ -1,5 +1,18 @@
 # Comfort Homes — Changelog
 
+## 0.0.7.dev25 — Travelling cost removed from the fee schedule
+
+**Needs install + migrate** (fixture: Summary of Financial Obligations). Includes dev24.
+
+- Summary of Financial Obligations item 20: the "Travelling Cost" line (actual boat, car, plane costs) is removed; Field Visit now reads "$25.00 per visit, including all travel costs" (decision 25-11-2026). No other change.
+- Devcom (25-11-2026, approved): `hp_rollout.setup_rollout(include_fees=1)` created the Reminder Letter, Demand Notice, Dishonoured Cheque and Statement Print items and Standard Selling prices; nothing else changed and fee billing remains disabled.
+
+## 0.0.7.dev24 — Default-charge wording on drafts not yet re-saved
+
+**Needs install + migrate** (fixture: two print formats).
+
+- Found on devcom after dev23: a draft saved before dev23 has empty default-charge fields, so Schedule 1 and the HP Agreement printed "overdue by more than 0 days". Until the snapshot is saved, both now print the HP product defaults (2.5% a month, 7 days, 90 days); once saved, the saved contract values. No other change.
+
 ## 0.0.7.dev23 — Contract documents match the system: default charge, fees, instalments
 
 **Needs install + migrate** (fixtures: print formats, custom fields, Loan Application field order, web form). Decisions approved 25-11-2026.

@@ -156,7 +156,7 @@ def test_schedule_1_renders_actual_frequency_and_per_period_charge(period, count
 
 def test_fee_schedule_matches_system_rates():
 	sofo = PF["Summary of Financial Obligations"]
-	assert "Bailiff" not in sofo and "50 cents" not in sofo and "$1.00 per call" not in sofo
+	assert "Bailiff" not in sofo and "Travelling Cost" not in sofo and "50 cents" not in sofo and "$1.00 per call" not in sofo
 	for text in ("$2.50 per SMS", "$2.50 per call", "$25.00 per visit", "Fixed $2.00 for accounts in arrears",
 			"$25.00 per demand", "Fixed at $25.00", "$2.00 per page per print", "include VAT at 12.5%"):
 		assert text in sofo, text
@@ -253,3 +253,19 @@ def test_fields_hidden_added_and_fingerprinted():
 	web = {f["fieldname"]: f for f in json.loads((ROOT / "fixtures" / "web_form.json").read_text())[0]["web_form_fields"]}
 	assert web["custom_flexi_stamp_duty_fee"]["hidden"] == 1 and web["custom_flexi_other_fee"]["hidden"] == 1
 	assert "'custom_hp_default_rate_monthly'" in (ROOT / "document_controls.py").read_text()
+
+
+@pytest.mark.parametrize("saved,expected", [({}, "more than 7 days"), ({"custom_hp_default_rate_monthly": 0, "custom_hp_default_grace_days": 0}, "more than 7 days"),
+	({"custom_hp_default_rate_monthly": 3.0, "custom_hp_default_grace_days": 5, "custom_hp_default_stop_dpd": 60}, "more than 5 days")])
+def test_unsaved_draft_prints_product_defaults_not_zero(saved, expected):
+	import re
+	import jinja2
+	h = PF["Schedule 1"]
+	sets = h[h.index("{% set period_label"):h.index("%}", h.index("{% set dc_unit")) + 2]
+	l_block = h[h.index("<p>III. If the Hirer"):h.index("</p>", h.index("<p>III. If the Hirer")) + 4]
+
+	class Doc(dict):
+		__getattr__ = dict.get
+	text = re.sub(r"<[^>]+>", "", jinja2.Environment().from_string(sets + l_block).render(doc=Doc(custom_flexi_payment_period="Monthly", **saved)))
+	assert expected in text
+	assert ("3.00% per month" if saved.get("custom_hp_default_rate_monthly") else "2.50% per month") in text
