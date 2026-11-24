@@ -1,5 +1,15 @@
 # Comfort Homes — Changelog
 
+## 0.0.7.dev22 — Interest pause at 30 days, closure release of deferred interest, no self-approval
+
+**Needs install + migrate** (fixtures: Journal Entry entry-type option, Loan Application workflow; new report; new scheduled job).
+
+- **Interest pause rule (approved 24-11-2026).** Month-end release of deferred HP interest now continues while a loan is up to 30 days past due and pauses only when it is overdue for more than a month (`hp_settings.INTEREST_PAUSE_DPD = 30`). Months skipped while paused are released as a catch-up once the loan is back within 30 days. Applies to new loans (`hp_interest`) and converted MYOB loans (`hp_conversion`). Previously any loan 1+ day past due was paused. `hp_interest.py` is intentionally changed and re-pinned.
+- **Closure release.** New daily job `hp_closure.release_on_closure` (runs after penalty realisation). A closed Flexi loan that still holds Deferred HP Interest (2013) gets one journal, Dr 2013 / Cr 4001, dated on the loan's closure date, entry type "Closure Release", tag `HP-CLOSE-<loan>`. It releases only when the loan closed on or after contract maturity (last instalment date of any submitted schedule, so a Reduce Tenure reschedule does not count as maturity) or a settlement rebate is already booked. An early payoff with no rebate is not released; it is listed as "Rebate owed" for Accounts. Note: the existing `post_settlement_rebate` needs an Active schedule, so it cannot book a rebate after closure; refunding a rebate on an already-closed loan is part of the repayments batch (F2).
+- **HP Closure Review report** (Director, Finance Manager, Accounts Manager, Accounts Officer): closed loans with deferred interest or penalties left, closure date, contract maturity and next step (Release / Rebate owed). Read-only.
+- **No self-approval on approval steps.** Loan Application Workflow-1: Approve, Director Approve, Compliance Sign-off, Director Compliance Sign-off and both Approve LPO transitions no longer allow the user who created the application to approve it. All other transitions unchanged. Public web-form applications are created by Guest and are not affected.
+- Unchanged: penalties, gross booking, settlement, bank reconciliation, conversion loading, fees.
+
 ## 0.0.7.dev21 — Loan Application: Living Expenses table full width
 
 **Needs install + migrate** (fixtures: one custom field, Loan Application field order).

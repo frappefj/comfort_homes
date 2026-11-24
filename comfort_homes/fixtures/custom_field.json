@@ -11864,7 +11864,7 @@
   "label": "HP Entry Type",
   "fieldtype": "Select",
   "insert_after": "custom_hp_loan",
-  "options": "\nGross Booking Reclass\nInterest Release\nPenalty Realisation\nRebate\nWrite Off Clearance\nOpening Balance",
+  "options": "\nGross Booking Reclass\nInterest Release\nPenalty Realisation\nRebate\nWrite Off Clearance\nOpening Balance\nClosure Release",
   "read_only": 1,
   "no_copy": 1
  },

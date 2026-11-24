@@ -68,6 +68,9 @@ RELEASE_BLOCKERS = ()
 NATIVE_NPA_THRESHOLD = 89
 
 NPA_DAYS_PAST_DUE = 90
+# dev22 (approved 24-11-2026): deferred interest keeps releasing while a loan is up to this many days past
+# due, and pauses only when it is overdue for more than a month. Skipped months catch up once it is back.
+INTEREST_PAUSE_DPD = 30
 GRACE_DAYS_DEFAULT = 7
 PENALTY_MONTHLY_RATE_DEFAULT = 2.5
 

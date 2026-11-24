@@ -376,8 +376,8 @@ def release_converted_interest(as_of=None):
 	released = []
 	for loan in _converted_loans(["name", "loan_application", "cost_center", "posting_date", "custom_hp_opening_unearned"]):
 		frappe.db.sql("SELECT name FROM `tabLoan` WHERE name = %s FOR UPDATE", (loan.name,))
-		if (frappe.db.get_value("Loan", loan.name, "days_past_due") or 0) > 0:
-			continue  # overdue: interest stays deferred until the loan is current (agreed rule)
+		if (frappe.db.get_value("Loan", loan.name, "days_past_due") or 0) > s.INTEREST_PAUSE_DPD:
+			continue  # dev22: paused only when overdue more than a month; catch-up once back within 30 days
 		if frappe.db.exists("Loan Balance Adjustment", {"loan": loan.name, "reference_number": "HP-REBATE-" + loan.name, "docstatus": 1}):
 			continue
 		tag = f"HP-INT-{loan.name}-{month_end}"

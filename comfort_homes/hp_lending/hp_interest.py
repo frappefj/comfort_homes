@@ -1,9 +1,9 @@
 """Month-end release of deferred interest (straight-line, non-overdue loans only).
 
 The agreed rule: 1/N of the deferred interest is earned each month-end, final
-month capped at the exact remainder, and only while the loan is current.
-Interest skipped while overdue is released as a catch-up once the loan is
-current again.  One journal entry per loan per run, tagged to the loan, so
+month capped at the exact remainder.  dev22: release pauses only while the loan
+is more than ``INTEREST_PAUSE_DPD`` (30) days past due; months skipped while
+paused are released as a catch-up once it is back within 30 days.  One journal entry per loan per run, tagged to the loan, so
 "released to date" is read from the ledger and can never drift.
 """
 
@@ -46,8 +46,8 @@ def release_deferred_interest(as_of=None):
 		# A booked settlement already disposed of all deferred interest.
 		if frappe.db.exists("Loan Balance Adjustment", {"loan": loan.name, "reference_number": "HP-REBATE-" + loan.name, "docstatus": 1}):
 			continue
-		if not loan.loan_application or (loan.days_past_due or 0) > 0:
-			continue  # overdue: interest stays deferred until the loan is current
+		if not loan.loan_application or (loan.days_past_due or 0) > s.INTEREST_PAUSE_DPD:
+			continue  # overdue more than a month: interest stays deferred until it is back within 30 days
 		tag = f"HP-INT-{loan.name}-{month_end}"
 		if s.entry_exists(TYPE, loan.name, tag):
 			continue

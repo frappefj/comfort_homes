@@ -406,6 +406,8 @@ scheduler_events = {
 	"daily_long": [
 		"comfort_homes.hp_lending.hp_penalties.assess_penalties",
 		"comfort_homes.hp_lending.hp_penalties.realise_closed_loan_penalties",
+		# dev22: interest still deferred on a closed loan is released (after any settlement rebate).
+		"comfort_homes.hp_lending.hp_closure.release_on_closure",
 		"comfort_homes.hp_lending.hp_conversion.assess_converted_penalties",
 	],
 	# 02:30 on the 1st: release deferred interest for the month that has just ended.

@@ -268,7 +268,7 @@
    },
    {
     "action": "Approve",
-    "allow_self_approval": 1,
+    "allow_self_approval": 0,
     "allowed": "Finance Manager",
     "condition": "(doc.custom_flexi_cash_price or 0) < 3000",
     "next_state": "Approved",
@@ -279,7 +279,7 @@
    },
    {
     "action": "Director Approve",
-    "allow_self_approval": 1,
+    "allow_self_approval": 0,
     "allowed": "Director",
     "condition": null,
     "next_state": "Approved",
@@ -323,7 +323,7 @@
    },
    {
     "action": "Compliance Sign-off",
-    "allow_self_approval": 1,
+    "allow_self_approval": 0,
     "allowed": "Finance Manager",
     "condition": null,
     "next_state": "Ready for Disbursement",
@@ -334,7 +334,7 @@
    },
    {
     "action": "Director Compliance Sign-off",
-    "allow_self_approval": 1,
+    "allow_self_approval": 0,
     "allowed": "Director",
     "condition": null,
     "next_state": "Ready for Disbursement",
@@ -378,7 +378,7 @@
    },
    {
     "action": "Approve LPO",
-    "allow_self_approval": 1,
+    "allow_self_approval": 0,
     "allowed": "Finance Manager",
     "condition": null,
     "next_state": "LPO Approved",
@@ -389,7 +389,7 @@
    },
    {
     "action": "Approve LPO",
-    "allow_self_approval": 1,
+    "allow_self_approval": 0,
     "allowed": "Director",
     "condition": null,
     "next_state": "LPO Approved",

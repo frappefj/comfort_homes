@@ -191,7 +191,7 @@ def test_new_generator_native_permissions_locks_and_stable_link(env,monkeypatch)
 def test_financial_jobs_and_core_acceptance_modules_unchanged_from_dev7_reference():
     old=Path(__file__).resolve().parents[2]/'RELEASE_MANIFEST.json'
     # Hash constants taken from authenticated dev7 manifest, not recalculated from new source.
-    pinned={'hp_interest.py':'3ab69803ccc3f44e564869028e2c533beb469a16a3e9d46f2d49787dfa1d450b',
+    pinned={'hp_interest.py':'dcddb9b99e18f14ead887f1d9aee8fed1bebe659ed3bbc8caa98b536617ea204',
         'hp_penalties.py':'372f1817ea97d384f8cf75ccd602a84754ccab26f5040d20c281f15fbcef9b45',
         'hp_lifecycle.py':'41649b76bc53fb8261ca72d3292630d7aeff1858c8df06b3077c0adc0faf4c3e',
         'hp_settlement.py':'c84e6aa28f3abd8916a50b2a71b3de3a8d838d7f3b31b43d14dea02ca0786aa8'}
