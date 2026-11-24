@@ -1,5 +1,11 @@
 # Comfort Homes — Changelog
 
+## 0.0.7.dev19 — Loan Bank Reconciliation: match on HP account number
+
+- Found in the devcom import test (24-11): narrations carrying the customer's HP account number (e.g. NAM202501) were Unmatched, because matching only looked at Card ID and TIN, and converted MYOB customers hold the HP account number in `custom_ch_account_reference_no` (422 of them have only a placeholder TIN).
+- Statement import now also matches the HP account number on `custom_ch_account_reference_no`, including the year-sequence form (e.g. 2026-00366). As before, a match is used only when it identifies exactly one customer, and a loan is filled only when that customer has exactly one Disbursed loan. Since there is one customer per HP account, this also settles narrations whose name is shared by several customers.
+- Repayment creation, posting and GL unchanged. Install only (no fixture changes).
+
 ## 0.0.7.dev18 — Converted loans: customer name in list views
 
 - Converted loans and applications now carry Customer Full Name and Applicant Name (from the Customer) when loaded, so they show in the Loan and Loan Application lists.
