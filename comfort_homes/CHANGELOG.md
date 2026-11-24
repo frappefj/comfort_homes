@@ -1,5 +1,13 @@
 # Comfort Homes — Changelog
 
+## 0.0.7.dev21 — Loan Application: Living Expenses table full width
+
+**Needs install + migrate** (fixtures: one custom field, Loan Application field order).
+
+- **Income & Living Expenses tab (Desk).** The Living Expenses table now has its own full-width section, so Category, Description, Frequency and Amount are readable while entering rows. Total Monthly Living Expenses, Net Monthly Income After Living Expenses and CIRA Updates sit directly below it in two columns. New field: one unlabelled Section Break (`custom_flexi_expense_summary_section`); no data, calculations or fieldnames changed.
+- Web form and Co-Applicant form unchanged.
+- Unchanged: posting, Loan Bank Reconciliation, GL, conversion, scheduled jobs, protected HP files.
+
 ## 0.0.7.dev20 — Loan Application layout, repayment method lock, bank matching
 
 **Needs install + migrate** (fixtures: custom fields, property setters, web form).
