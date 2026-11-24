@@ -71,6 +71,11 @@ NPA_DAYS_PAST_DUE = 90
 # dev22 (approved 24-11-2026): deferred interest keeps releasing while a loan is up to this many days past
 # due, and pauses only when it is overdue for more than a month. Skipped months catch up once it is back.
 INTEREST_PAUSE_DPD = 30
+
+# Application fields that have no ledger account in the Gross HP booking. Blocked and hidden (dev22) until
+# a separate account is approved for them; a non-zero value would otherwise fail at disbursement.
+UNBOOKABLE_FEE_FIELDS = ("custom_flexi_surcharge_rate", "custom_flexi_stamp_duty_fee", "custom_flexi_other_fee")
+DEFAULT_PRODUCT = "HP-STD"
 GRACE_DAYS_DEFAULT = 7
 PENALTY_MONTHLY_RATE_DEFAULT = 2.5
 

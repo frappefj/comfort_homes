@@ -39,7 +39,8 @@ TERMS = ('company', 'loan_product', 'custom_branchlocation', 'custom_flexi_cash_
          'custom_flexi_term_months', 'custom_flexi_interest_rate', 'custom_flexi_payment_period',
          'custom_flexi_payment_method', 'custom_flexi_first_instalment_date',
          'custom_flexi_surcharge_rate', 'custom_flexi_stamp_duty_fee', 'custom_flexi_other_fee',
-         'custom_flexi_form1_dated_at', 'custom_flexi_form1_location', 'custom_mode_of_payment')
+         'custom_flexi_form1_dated_at', 'custom_flexi_form1_location', 'custom_mode_of_payment',
+         'custom_hp_default_rate_monthly', 'custom_hp_default_grace_days', 'custom_hp_default_stop_dpd')
 PROFILE_TABLES = {'custom_flexi_income_entries': ('income_type', 'description', 'amount', 'frequency', 'status'),
                   'custom_flexi_living_expenses': ('category', 'description', 'expense_amount', 'frequency_per_month', 'status'),
                   'custom_flexi_finance_obligations': ('obligation_type', 'provider', 'amount', 'frequency', 'status')}

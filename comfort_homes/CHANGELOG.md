@@ -1,5 +1,16 @@
 # Comfort Homes — Changelog
 
+## 0.0.7.dev23 — Contract documents match the system: default charge, fees, instalments
+
+**Needs install + migrate** (fixtures: print formats, custom fields, Loan Application field order, web form). Decisions approved 25-11-2026.
+
+- **Default charge, one source.** The Loan Product's default charge (HP-STD: 2.5% a month, 7 days' grace, stops at 90 days past due) is copied onto each draft application (`custom_hp_default_rate_monthly`, `_grace_days`, `_stop_dpd`, read-only, under Interest Rate) and is part of the signed-contract fingerprint. The HP Agreement clause 4 (was "2.2%") and Schedule 1 (L)(III) (printed blank: `custom_default_rate` never existed) now state the method the scheduler uses: the monthly rate, charged on each scheduled repayment date on the instalments overdue beyond grace, at the per-period equivalent (0.58% a week, 1.15% a fortnight, 2.50% a month), stopping at 90 days, never on a default charge. Creating a Loan is refused if the Loan Product's terms differ from what the customer signed. The charge calculation itself is unchanged. Converted MYOB contracts are untouched.
+- **Fees as billed.** Summary of Financial Obligations, item 20: SMS $2.50 and Call $2.50 (were 50 cents and $2.00/$1.00), Field Visit $25.00 added, Bailiff removed, Default Charge row added, note that fees include VAT at 12.5% (not the default charge). Reminder letter $2, demand notice $25, dishonoured cheque $25, travelling cost and statement print $2/page unchanged. The fee catalogue gains Reminder Letter ($2.00, 4012), Demand Notice ($25.00, 4012), Dishonoured Cheque ($25.00, 4008) and Statement Print ($2.00 per page, 4008; quantity 1–50 pages, the only fee with a quantity). Items and prices are created by the existing guarded rollout (`hp_rollout.setup_rollout`, include_fees); independent fee billing stays disabled until switched on.
+- **Schedule 1 (F) Repayments** prints the actual count, frequency and term with the final instalment, e.g. "52 fortnightly instalments over 24 months: 51 instalments of $43.24 and a final instalment of $43.29" (was "Fortnightly installments … for a period of 24 months").
+- **Surcharge, stamp duty and other fee** are hidden on the Loan Application (Desk and web form) and a non-zero value is refused on Flexi drafts; they have no ledger account in the Gross HP booking.
+- 22% flat-rate wording unchanged pending legal review. No VAT on the admin fee or goods (tax confirmation 25-11-2026): no change.
+- Draft applications already carrying a signed pack need the documents regenerated and re-signed, because the templates changed.
+
 ## 0.0.7.dev22 — Interest pause at 30 days, closure release of deferred interest, no self-approval
 
 **Needs install + migrate** (fixtures: Journal Entry entry-type option, Loan Application workflow; new report; new scheduled job).

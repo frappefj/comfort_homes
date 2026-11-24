@@ -128,6 +128,8 @@ def apply_application(doc, method=None):
     _identity(doc)
     from comfort_homes.loan_application_workflow import _set_employment_period
     _set_employment_period(doc)
+    block_unbookable_fees(doc)
+    apply_default_charge_terms(doc)
     try:
         profile = _profile(doc)
         rows = doc.get("custom_flexi_purchase_items") or []
@@ -141,6 +143,45 @@ def apply_application(doc, method=None):
             _set(doc, field, value)
     except (ValueError, TypeError, OverflowError) as error:
         frappe.throw(str(error), title="Origination Calculation")
+
+
+def block_unbookable_fees(doc):
+    """dev22: surcharge, stamp duty and other fee have no account in the Gross HP booking."""
+    from comfort_homes.hp_lending import hp_settings as s
+    from comfort_homes.hp_lending.origination_math import number
+    if doc.get("company") != s.COMPANY or doc.get("custom_hp_converted"):
+        return
+    used = [doc.meta.get_label(f) for f in s.UNBOOKABLE_FEE_FIELDS if doc.meta.has_field(f) and number(doc.get(f))]
+    if used:
+        frappe.throw("{0} cannot be charged on a Flexi HP contract yet: set to zero.".format(", ".join(used)),
+            title="Fee Not Available")
+
+
+def default_charge_terms(product):
+    """(monthly rate %, grace days, stop days past due) from the Loan Product, with the HP defaults."""
+    from comfort_homes.hp_lending import hp_settings as s
+    from comfort_homes.hp_lending.origination_math import number
+    row = frappe.db.get_value("Loan Product", product or s.DEFAULT_PRODUCT,
+        ["custom_hp_penalty_rate_monthly", "grace_period_in_days", "custom_hp_penalty_stop_dpd"], as_dict=True) or {}
+    rate = row.get("custom_hp_penalty_rate_monthly")
+    grace = row.get("grace_period_in_days")
+    stop = row.get("custom_hp_penalty_stop_dpd")
+    return (s.PENALTY_MONTHLY_RATE_DEFAULT if rate is None else number(rate),
+        s.GRACE_DAYS_DEFAULT if grace is None else int(grace), int(stop or s.NPA_DAYS_PAST_DUE))
+
+
+def apply_default_charge_terms(doc):
+    """dev22: snapshot the default charge the contract documents print and the scheduler charges.
+
+    Taken from the Loan Product while the application is a draft, so it is part of the signed-contract
+    fingerprint; a product change after signing therefore requires the pack to be re-signed."""
+    from comfort_homes.hp_lending import hp_settings as s
+    if doc.get("company") != s.COMPANY or doc.get("custom_hp_converted"):
+        return
+    rate, grace, stop = default_charge_terms(doc.get("loan_product"))
+    _set(doc, "custom_hp_default_rate_monthly", rate)
+    _set(doc, "custom_hp_default_grace_days", grace)
+    _set(doc, "custom_hp_default_stop_dpd", stop)
 
 
 def apply_profile(doc, method=None):

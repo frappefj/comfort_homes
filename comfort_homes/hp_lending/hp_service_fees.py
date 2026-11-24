@@ -8,7 +8,7 @@ from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 import frappe
 from frappe.utils import cint, getdate
 from comfort_homes.hp_lending import hp_settings as s
-from comfort_homes.hp_lending.hp_rollout import FEE_RATES, TAX_TITLE, account
+from comfort_homes.hp_lending.hp_rollout import FEE_RATES, PER_UNIT_FEES, TAX_TITLE, account
 
 TRIGGERS = ("loan", "loan_disbursement", "loan_repayment", "loan_partner", "against_voucher", "against_voucher_type")
 
@@ -43,6 +43,15 @@ def _reference(doc):
     return loan
 
 
+def _units(item):
+    """1 for event fees; a whole number of pages (1 to the limit) for per-unit fees such as Statement Print."""
+    limit=PER_UNIT_FEES.get(item.item_code)
+    if not limit: return 1
+    qty=abs(money(item.qty))
+    if qty!=qty.to_integral_value() or not 1<=qty<=limit: frappe.throw(f"{item.item_code} quantity must be a whole number of pages from 1 to {limit}")
+    return int(qty)
+
+
 def _rules(doc):
     if any(doc.get(f) for f in TRIGGERS): frappe.throw("Independent fees must not use native Loan, partner or repayment trigger fields")
     if not cint(doc.get("custom_hp_independent_fee")): frappe.throw("Use the independent fee invoice path for these servicing items")
@@ -50,8 +59,9 @@ def _rules(doc):
     item=doc.get("items")[0]
     if item.item_code not in FEE_RATES: frappe.throw("Only approved independent servicing fee items are allowed")
     rate,_=FEE_RATES[item.item_code]
-    expected_qty=-1 if cint(doc.get("is_return")) else 1
-    if money(item.qty)!=money(expected_qty) or money(item.rate)!=money(rate): frappe.throw("Fee quantity/rate must match the approved VAT-inclusive single event")
+    sign=-1 if cint(doc.get("is_return")) else 1
+    units=_units(item)
+    if money(item.qty)!=money(sign*units) or money(item.rate)!=money(rate): frappe.throw("Fee quantity/rate must match the approved VAT-inclusive event")
     if doc.currency!="FJD" or money(doc.get("conversion_rate") or 1)!=Decimal("1.00"): frappe.throw("Independent fees must be in FJD at exchange rate 1")
     if doc.get("update_stock") or doc.get("is_pos") or doc.get("is_opening")=="Yes" or money(doc.get("discount_amount")) or money(doc.get("additional_discount_percentage")):
         frappe.throw("Stock/POS/opening/discount processing is not part of independent fees")
@@ -90,7 +100,7 @@ def validate(doc, method=None):
     taxes=doc.get("taxes") or []
     if len(taxes)!=1 or taxes[0].charge_type!="On Net Total" or taxes[0].account_head!=account("2310") or money(taxes[0].rate)!=Decimal("12.50") or not cint(taxes[0].included_in_print_rate):
         frappe.throw("Apply exactly the approved 12.5% inclusive output VAT row")
-    gross=money(rate)*(-1 if cint(doc.get("is_return")) else 1)
+    gross=money(rate)*_units(item)*(-1 if cint(doc.get("is_return")) else 1)
     net=(gross/Decimal("1.125")).quantize(Decimal("0.01"),rounding=ROUND_HALF_UP)
     if money(doc.grand_total)!=gross or money(doc.net_total)!=net or money(doc.total_taxes_and_charges)!=gross-net:
         frappe.throw("Fee totals do not match the approved inclusive rate and VAT cents")

@@ -5,7 +5,12 @@ from frappe.utils import cint
 from comfort_homes.hp_lending import hp_settings as s
 
 DOCUMENT_TYPES = ("Identity Document", "Latest Payslip", "Bank Statement", "Proof of Address", "Supplier Quotation", "Other Supporting Document")
-FEE_RATES = {"SMS Charge": (2.50, "4011"), "Call Charge": (2.50, "4011"), "Field Visit": (25.00, "4008")}
+# VAT-inclusive (12.5%) servicing fees, as disclosed in the Summary of Financial Obligations (dev22).
+FEE_RATES = {"SMS Charge": (2.50, "4011"), "Call Charge": (2.50, "4011"), "Field Visit": (25.00, "4008"),
+    "Reminder Letter": (2.00, "4012"), "Demand Notice": (25.00, "4012"),
+    "Dishonoured Cheque": (25.00, "4008"), "Statement Print": (2.00, "4008")}
+# Fees billed per unit (statement pages); every other fee is one event per invoice.
+PER_UNIT_FEES = {"Statement Print": 50}
 TAX_TITLE = "Flexi Servicing Fees VAT 12.5% Inclusive"
 
 

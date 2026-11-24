@@ -18,7 +18,11 @@
   "fees": [
     {"item_code": "SMS Charge", "price_list_rate": 2.50, "vat_inclusive": true, "income_account_number": "4011"},
     {"item_code": "Call Charge", "price_list_rate": 2.50, "vat_inclusive": true, "income_account_number": "4011"},
-    {"item_code": "Field Visit", "price_list_rate": 25.00, "vat_inclusive": true, "income_account_number": "4008"}
+    {"item_code": "Field Visit", "price_list_rate": 25.00, "vat_inclusive": true, "income_account_number": "4008"},
+    {"item_code": "Reminder Letter", "price_list_rate": 2.00, "vat_inclusive": true, "income_account_number": "4012"},
+    {"item_code": "Demand Notice", "price_list_rate": 25.00, "vat_inclusive": true, "income_account_number": "4012"},
+    {"item_code": "Dishonoured Cheque", "price_list_rate": 25.00, "vat_inclusive": true, "income_account_number": "4008"},
+    {"item_code": "Statement Print", "price_list_rate": 2.00, "vat_inclusive": true, "income_account_number": "4008", "per_page": true}
   ],
   "sales_tax_template": {
     "saved_name": "Flexi Servicing Fees VAT 12.5% Inclusive - Flexi",

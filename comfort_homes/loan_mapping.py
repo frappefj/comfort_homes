@@ -159,6 +159,7 @@ def apply_loan_application_values(doc, method=None):
 	# balance after the deposit as equal principal-only instalments at 0%.  The
 	# contract rate stays on the Loan Product and the agreement.
 	doc.loan_amount = application.get("custom_flexi_total_receivable") or doc.loan_amount
+	_check_default_charge_terms(application, doc.get("loan_product"))
 	doc.custom_hp_contract_rate = flt(application.get("custom_flexi_interest_rate"))
 	doc.rate_of_interest = 0
 	doc.cost_center = application.get("custom_branchlocation") or doc.cost_center or frappe.db.get_value("Company", doc.company, "cost_center")
@@ -166,6 +167,20 @@ def apply_loan_application_values(doc, method=None):
 		application.get("custom_flexi_payment_method"), application.get("custom_flexi_payment_method")
 	)
 	_copy_purchase_items(doc, application)
+
+
+def _check_default_charge_terms(application, product):
+	"""dev22: the scheduler charges the Loan Product rate, so it must equal what the customer signed."""
+	if application.get("custom_hp_converted") or application.get("custom_hp_default_rate_monthly") in (None, ""):
+		return
+	from comfort_homes.origination import default_charge_terms
+	signed = (flt(application.custom_hp_default_rate_monthly), cint(application.get("custom_hp_default_grace_days")),
+		cint(application.get("custom_hp_default_stop_dpd")))
+	current = default_charge_terms(product or application.get("loan_product"))
+	if (flt(current[0]), current[1], current[2]) != signed:
+		frappe.throw(_("The contract was signed with a default charge of {0}% a month (grace {1} days, stop at {2} days) "
+			"but Loan Product {3} now has {4}% / {5} / {6}. Use a product matching the signed contract.").format(
+			*signed, product or application.get("loan_product"), *current), title=_("Default Charge Mismatch"))
 
 
 def apply_loan_values_to_disbursement(doc, method=None):
