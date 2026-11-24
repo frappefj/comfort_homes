@@ -12,8 +12,8 @@ Daily, for every closed Flexi loan that still has a 2013 balance:
   on the loan's closure date and tagged ``HP-CLOSE-<loan>``.
 * Closed before maturity with no rebate booked: nothing is posted.  The customer may be owed a
   Rule of 78 rebate, so the loan is listed on the HP Closure Review report for Accounts to book
-  the settlement rebate (see the repayments batch: a closed loan needs Dr 2013 / Cr Customer Refund).
-  Nothing is released for it until then.
+  the rebate: the Finance Manager uses "Refund Rebate" (hp_credit.refund_rebate_after_closure,
+  Dr 2013 / Cr 2008 HP Refund Payable).  The next daily run then releases what is left.
 
 Idempotent: one closure journal per loan.  Never edits or cancels an existing document.
 """
@@ -43,8 +43,10 @@ def contract_maturity(loan):
 
 
 def rebate_booked(loan):
+	"""Rebate credited before closure (Loan Balance Adjustment) or refunded after it (dev26 journal)."""
 	return bool(frappe.db.exists("Loan Balance Adjustment",
-		{"loan": loan, "reference_number": "HP-REBATE-" + loan, "docstatus": 1}))
+		{"loan": loan, "reference_number": "HP-REBATE-" + loan, "docstatus": 1})
+		or s.entry_exists("Rebate", loan, f"HP-REBATE-REFUND-{loan}"))
 
 
 def classify(closure_date, maturity, has_rebate, balance):

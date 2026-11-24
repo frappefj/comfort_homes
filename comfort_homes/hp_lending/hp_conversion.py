@@ -19,7 +19,7 @@ How a converted contract is held
     other unpaid fees     Dr 1120 (customer) / Cr 1910
     paid before cut-over  imported Loan Repayment (no GL): Lending's paid-to-date, so payoff,
                           closure and any reschedule start from the MYOB balance
-    paid ahead            Advance Payment repayment received into 1910
+    paid ahead            held as customer credit, Dr 1910 / Cr 2017 (dev26; Advance Payment before)
     overdue since         the imported arrears demand is dated at the oldest unpaid
                           instalment, so days past due and NPA continue from MYOB.
 * Interest release and late charges for converted loans run from this module, so
@@ -208,9 +208,18 @@ def _post_opening_paid(doc):
 
 
 def _post_opening_advance(doc):
+	"""dev26: the MYOB paid-ahead balance is held as customer credit (Dr 1910 / Cr 2017), so it pays the
+	instalments on their due dates; the contract schedule is not shortened."""
 	amount = m.money(doc.get("custom_hp_opening_advance"))
+	if amount <= 0:
+		return
+	from comfort_homes.hp_lending import hp_credit
+	if hp_credit.credit_account(required=False):
+		hp_credit.hold_credit(doc, amount, _account(OPENING_ACCOUNT_NUMBER), add_days(getdate(doc.migration_date), -1),
+			f"HP-OPEN-CREDIT-{doc.name}", f"MYOB paid-ahead balance of {doc.name} held as customer credit")
+		return
 	key = f"HP-OPEN-ADV-{doc.name}"
-	if amount <= 0 or frappe.db.exists("Loan Repayment", {"against_loan": doc.name, "reference_number": key, "docstatus": 1}):
+	if frappe.db.exists("Loan Repayment", {"against_loan": doc.name, "reference_number": key, "docstatus": 1}):
 		return
 	# Paid before cut-over: value it at the end of the day before the migration (opening) date, so an instalment
 	# falling on the migration date is not treated as paid by it (it stays in the rescheduled instalments).
@@ -250,16 +259,18 @@ def verify_loan(name):
 	overdue = m.money(frappe.db.sql("""SELECT COALESCE(SUM(outstanding_amount), 0) FROM `tabLoan Demand`
 		WHERE loan = %s AND docstatus = 1 AND demand_type = 'EMI'""", (name,))[0][0])
 	pending = m.money(m.d(loan.loan_amount) + m.d(loan.debit_adjustment_amount) - m.d(loan.credit_adjustment_amount) - m.d(loan.total_principal_paid))
-	expected = m.money(loan.custom_hp_opening_outstanding) + m.money(loan.custom_hp_opening_penalty)
+	from comfort_homes.hp_lending.hp_credit import credit_balance
+	credit = credit_balance(name)  # dev26: paid ahead is held as credit, so Lending still collects it
+	expected = m.money(loan.custom_hp_opening_outstanding) + m.money(loan.custom_hp_opening_penalty) + credit
 	collect = future + overdue
 	problems = []
 	if abs(pending - expected) > m.d("0.05"):
-		problems.append(f"pending principal {pending} vs MYOB {expected}")
-	if abs(collect - m.money(loan.custom_hp_opening_outstanding)) > m.d("0.05"):
-		problems.append(f"schedule + overdue {collect} vs MYOB {loan.custom_hp_opening_outstanding}")
+		problems.append(f"pending principal {pending} vs MYOB {expected - credit} + credit {credit}")
+	if abs(collect - m.money(loan.custom_hp_opening_outstanding) - credit) > m.d("0.05"):
+		problems.append(f"schedule + overdue {collect} vs MYOB {loan.custom_hp_opening_outstanding} + credit {credit}")
 	return {"loan": name, "pending_principal": float(pending), "future_schedule": float(future), "overdue": float(overdue),
 		"rows_left": sum(1 for r in rows if not r.demand_generated), "last_date": str(rows[-1].payment_date) if rows else None,
-		"dpd": loan.days_past_due, "npa": loan.is_npa, "ok": not problems, "problems": problems}
+		"dpd": loan.days_past_due, "npa": loan.is_npa, "credit": float(credit), "ok": not problems, "problems": problems}
 
 
 @frappe.whitelist(methods=["POST"])

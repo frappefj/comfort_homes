@@ -97,6 +97,14 @@ def months_elapsed(disbursement_date, as_of_date):
 	return (as_of_date.year - disbursement_date.year) * 12 + as_of_date.month - disbursement_date.month + 1
 
 
+def complete_months(start_date, end_date):
+	"""Whole months from the contract date to ``end_date`` (CCA Schedule 3): 15 Jan -> 14 Feb is 0, -> 15 Feb is 1."""
+	months = (end_date.year - start_date.year) * 12 + end_date.month - start_date.month
+	if end_date.day < start_date.day:
+		months -= 1
+	return max(0, months)
+
+
 def periodic_penalty_rate(monthly_rate_percent, frequency):
 	"""2.5% a month is 30% a year; spread over the repayment frequency."""
 	periods = PERIODS_PER_YEAR.get(frequency)

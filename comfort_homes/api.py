@@ -428,7 +428,7 @@ def loan_reconciliation(name, action, mapping=None, row_names=None):
 
 def import_statement(doc, mapping):
 	doc.check_permission("write")
-	if any(row.loan_repayment for row in doc.transactions):
+	if any(row.loan_repayment or row.get("credit_entry") or row.get("fee_payment") for row in doc.transactions):
 		frappe.throw(_("Create a new reconciliation for another import after repayments have been created."))
 	content, filename = _file(doc)
 	tables = _tables(content, filename)
@@ -495,7 +495,7 @@ def create_repayments(doc, row_names=None):
 	for row in doc.transactions:
 		# Ticked grid rows take precedence. Without ticks, retain bulk creation
 		# for every automatically-ready row.
-		if row.loan_repayment or (explicit_rows and row.name not in explicit_rows) or (not explicit_rows and not row.selected):
+		if row.loan_repayment or row.get("credit_entry") or row.get("fee_payment") or (explicit_rows and row.name not in explicit_rows) or (not explicit_rows and not row.selected):
 			continue
 		loan = row.loan or row.suggested_loan
 		if not loan:
@@ -521,32 +521,26 @@ def create_repayments(doc, row_names=None):
 			key = row.get("statement_transaction_key") or "HP-ROW-" + hashlib.sha256((doc.name + ":" + row.name).encode()).hexdigest()[:40]
 			existing = frappe.db.get_value("Loan Repayment", {"reference_number": key, "docstatus": ["!=", 2]}, ["name", "against_loan", "docstatus", "amount_paid", "value_date"], as_dict=True)
 			if existing:
-				if existing.against_loan != loan or existing.docstatus != 1 or flt(existing.amount_paid, 2) != flt(row.amount, 2) or getdate(existing.value_date) != getdate(row.transaction_date):
+				if existing.against_loan != loan or existing.docstatus != 1 or flt(existing.amount_paid, 2) > flt(row.amount, 2) or getdate(existing.value_date) != getdate(row.transaction_date):
 					frappe.throw("Bank row already has a different or draft repayment; review the existing record")
 				row.update({"loan": loan, "loan_repayment": existing.name, "status": "Loan Repayment Created"})
 				continue
-			values = {
-				"doctype": "Loan Repayment",
-				"against_loan": loan,
-				"company": doc.company or DEFAULT_COMPANY,
-				"posting_date": row.transaction_date,
-				"value_date": row.transaction_date,
-				"amount_paid": row.amount,
-				"repayment_type": "Normal Repayment",
-				"reference_number": key,
-				"reference_date": row.transaction_date,
-				"bank_account": doc.bank_account,
-				"payment_account": account,
-			}
-			if cost_center := _cost_center_for_loan(loan):
-				values["cost_center"] = cost_center
-			repayment = frappe.get_doc(values)
-			repayment.insert(); repayment.submit()
-			row.update({"loan": loan, "loan_repayment": repayment.name, "status": "Loan Repayment Created"}); created += 1
+			held = frappe.db.get_value("Journal Entry", {"cheque_no": ["in", [key, key + "-CR"]], "docstatus": 1, "custom_hp_loan": loan}, "name")
+			if held:
+				row.update({"loan": loan, "credit_entry": held, "status": row.status if row.status != "Ready" else "Customer Credit Held"})
+				continue
+			# dev26: due instalments first, then open servicing-fee invoices, then customer credit; a payoff is held
+			# as credit for the Finance Manager to confirm the settlement.
+			from comfort_homes.hp_lending.hp_credit import allocate_receipt
+			posted = allocate_receipt(loan, row.customer, row.amount, row.transaction_date, account, key, doc.bank_account,
+				cost_center=_cost_center_for_loan(loan))
+			row.update({"loan": loan, "loan_repayment": posted["loan_repayment"], "fee_payment": posted["fee_payment"],
+				"credit_entry": posted["credit_entry"], "allocation": posted["allocation"], "status": posted["status"]})
+			created += 1
 		except Exception as error:
 			frappe.db.rollback(save_point="hp_bank_row")
 			row.status = "Error"; errors.append(f"{row.customer_card_id or row.name}: {str(error)[:120]}")
-	posted = sum(bool(row.loan_repayment) for row in doc.transactions)
+	posted = sum(bool(row.loan_repayment or row.get("credit_entry") or row.get("fee_payment")) for row in doc.transactions)
 	doc.update({"created_repayments": posted, "status": "Reconciled" if posted and posted == len(doc.transactions) else "Partially Reconciled"})
 	doc.save()
 	return {"created": created, "skipped": skipped, "errors": errors[:10]}

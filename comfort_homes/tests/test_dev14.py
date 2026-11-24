@@ -174,6 +174,8 @@ def test_converted_submit_posts_opening_position_once(env, monkeypatch):
 
 def test_paid_to_date_then_paid_ahead(env, monkeypatch):
 	f, module, created = _conversion(env, monkeypatch)
+	import comfort_homes.hp_lending.hp_credit as credit
+	monkeypatch.setattr(credit, "credit_account", lambda required=True: None)  # before dev26 setup: Advance Payment
 	f.flags.in_import = None
 	seen = []
 	real = f.get_doc.side_effect

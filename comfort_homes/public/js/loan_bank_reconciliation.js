@@ -85,7 +85,7 @@ frappe.ui.form.on("Loan Bank Reconciliation", {
 						callback(r) {
 							if (!r.exc) {
 								const errors = r.message.errors || [];
-								frappe.msgprint({ title: "Loan reconciliation", message: `${r.message.created} repayment(s) created. ${r.message.skipped} row(s) skipped.` + (errors.length ? `<br><br>${errors.map(e => frappe.utils.escape_html(String(e))).join("<br>")}` : ""), indicator: errors.length ? "orange" : "green" });
+								frappe.msgprint({ title: "Loan reconciliation", message: `${r.message.created} receipt(s) posted (instalments, fees or customer credit). ${r.message.skipped} row(s) skipped.` + (errors.length ? `<br><br>${errors.map(e => frappe.utils.escape_html(String(e))).join("<br>")}` : ""), indicator: errors.length ? "orange" : "green" });
 								frm.reload_doc();
 							}
 						}
@@ -99,7 +99,7 @@ frappe.ui.form.on("Loan Bank Reconciliation", {
 frappe.ui.form.on("Loan Bank Reconciliation Item", {
 	loan(frm, cdt, cdn) {
 		const row = locals[cdt][cdn];
-		if (row.loan && !row.loan_repayment) {
+		if (row.loan && !row.loan_repayment && !row.credit_entry && !row.fee_payment) {
 			frappe.model.set_value(cdt, cdn, "selected", 1);
 			frappe.model.set_value(cdt, cdn, "status", "Ready");
 		}

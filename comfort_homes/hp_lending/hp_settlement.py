@@ -32,9 +32,9 @@ def _contract(loan_name):
 		"Loan Application", loan.loan_application,
 		["custom_flexi_term_charges", "custom_flexi_term_months"], as_dict=True,
 	) if loan.get("loan_application") else None
-	if not app or not app.custom_flexi_term_charges:
+	if not app or not app.custom_flexi_term_charges or not app.custom_flexi_term_months:
 		frappe.throw(_("{0} is not a Hire Purchase loan created from a Loan Application.").format(loan_name))
-	return loan, m.d(app.custom_flexi_term_charges)
+	return loan, m.d(app.custom_flexi_term_charges), int(app.custom_flexi_term_months)
 
 
 def _schedule_rows(loan_name):
@@ -49,13 +49,11 @@ def _schedule_rows(loan_name):
 
 
 def settlement_figures(loan_name, as_of=None):
-	"""Pure read.  Rebate by the Rule of 78 on the instalments still to come."""
+	"""Pure read.  Rule of 78 rebate (CCA Schedule 3): the contract term in months and the whole months
+	completed since the contract date, whatever the repayment frequency or any reschedule (dev26)."""
 	as_of = getdate(as_of or today())
-	loan, term_charges = _contract(loan_name)
-	rows = _schedule_rows(loan_name)
-	periods = len(rows)
-	remaining = sum(1 for r in rows if getdate(r.payment_date) > as_of)
-	paid = periods - remaining
+	loan, term_charges, periods = _contract(loan_name)
+	paid = min(periods, m.complete_months(getdate(loan.posting_date), as_of))
 	rebate = m.rule_of_78_unearned(term_charges, periods, paid)
 	deferred_left = max(m.money(_loan_balance(s.ACC_DEF_INTEREST, loan_name)), m.d(0))
 	rebate = min(rebate, deferred_left)  # never more than is still deferred
@@ -88,10 +86,14 @@ def settlement_quote(loan, as_of=None):
 
 @frappe.whitelist(methods=["POST"])
 def post_settlement_rebate(loan, as_of=None):
-	"""Book the rebate.  Approved by Accounts Manager; the customer then pays the reduced balance."""
-	frappe.only_for(("Accounts Manager", "System Manager"))
+	"""Book the rebate.  Confirmed by the Finance Manager (dev26); the customer then pays the reduced balance."""
+	frappe.only_for(("Finance Manager", "System Manager"))
 	frappe.db.sql("SELECT name FROM `tabLoan` WHERE name = %s FOR UPDATE", (loan,))
-	figures = settlement_figures(loan, as_of)
+	return book_rebate(loan, settlement_figures(loan, as_of))
+
+
+def book_rebate(loan, figures):
+	"""Credit Adjustment for the rebate (Dr 2013 / Cr 1101) and release of interest earned to that date."""
 	key = f"HP-REBATE-{loan}"
 	if frappe.db.exists("Loan Balance Adjustment", {"reference_number": key, "docstatus": 1}):
 		frappe.throw(_("A settlement rebate has already been booked for {0}.").format(loan))
@@ -104,7 +106,7 @@ def post_settlement_rebate(loan, as_of=None):
 			"adjustment_type": "Credit Adjustment", "amount": figures["rebate"],
 			"adjustment_account": s.ACC_DEF_INTEREST,
 			"reference_number": key,
-			"remarks": f"Rule of 78 settlement rebate: {figures['periods_paid']} of {figures['periods']} paid",
+			"remarks": f"Rule of 78 settlement rebate: {figures['periods_paid']} of {figures['periods']} months completed",
 		})
 		adj.insert()
 		adj.submit()

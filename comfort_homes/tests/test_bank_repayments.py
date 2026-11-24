@@ -22,6 +22,11 @@ def prepared(env,monkeypatch):
     f.db.get_value.return_value=None
     monkeypatch.setattr(module,'_payment_account',lambda *args:'BANK-LEDGER')
     monkeypatch.setattr(module,'_cost_center_for_loan',lambda *args:'BRANCH')
+    # dev26: the receipt is split by hp_credit; here the whole receipt is due (no payoff, no fees, no credit).
+    import comfort_homes.hp_lending.hp_credit as credit
+    monkeypatch.setattr(credit,'frappe',f)  # the module may have been imported under an earlier test's frappe stub
+    monkeypatch.setattr(credit,'payoff_figures',lambda *a:{'balance':credit.m.d(1000),'rebate':credit.m.d(0),'credit':credit.m.d(0),'net':credit.m.d(1000)})
+    monkeypatch.setattr(credit,'due_outstanding',lambda *a:credit.m.d('73.30'))
     return f,module,doc,row,repayment
 
 

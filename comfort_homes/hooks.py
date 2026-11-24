@@ -14,7 +14,7 @@ app_include_js = ["/assets/comfort_homes/js/hp_origination_math.js"]
 web_include_js = ["/assets/comfort_homes/js/hp_origination_math.js", "/assets/comfort_homes/js/loan_application_branch_filter.js"]
 
 doctype_js = {
-	"Loan": ["public/js/loan_temporary_repayment_tenure.js", "public/js/hp_service_fees.js"],
+	"Loan": ["public/js/loan_temporary_repayment_tenure.js", "public/js/hp_service_fees.js", "public/js/hp_loan_settlement.js"],
     "Sales Invoice": "public/js/hp_service_fees.js",
 	"Co-Applicant": ["public/js/co_applicant_profile.js", "public/js/document_evidence.js", "public/js/hp_document_status.js", "public/js/co_applicant_back_link.js"],
 	"Loan Application": [
@@ -412,6 +412,12 @@ scheduler_events = {
 	],
 	# 02:30 on the 1st: release deferred interest for the month that has just ended.
 	"cron": {
+		# dev26, 01:30 daily, after Lending raises the day's demands: pay due instalments from customer credit,
+		# then re-test recent default charges against receipts posted since.
+		"30 1 * * *": [
+			"comfort_homes.hp_lending.hp_credit.apply_credit",
+			"comfort_homes.hp_lending.hp_penalty_retest.retest_penalties",
+		],
 		"30 2 1 * *": [
 			"comfort_homes.hp_lending.hp_interest.release_deferred_interest",
 			"comfort_homes.hp_lending.hp_conversion.release_converted_interest",
