@@ -156,6 +156,13 @@ def _rebuild(name, frequency, periods, start_date, source):
 		return dict(loan=name, ok=False, done=False, problems=["frequency must be Weekly, Fortnightly or Monthly; periods > 0"])
 	before = _snapshot(doc)
 	migration = getdate(doc.migration_date)
+	# 7.1.1: on first load the converted loan was not yet linked to its application (hp_conversion links it
+	# after the import). Unlink for the rebuild, so the hooks for new HP contracts (gross booking, CIRA and
+	# approval checks on the application) leave the re-imported disbursement alone, exactly as on first load.
+	application = doc.get("loan_application")
+	if application:
+		frappe.db.set_value("Loan", name, "loan_application", None, update_modified=False)
+		doc = frappe.get_doc("Loan", name)
 	old_disbursement = frappe.db.get_value("Loan Disbursement", {"against_loan": name, "docstatus": 1, "is_imported": 1},
 		["name", "disbursement_date", "disbursed_amount"], as_dict=True)
 	if not old_disbursement:
@@ -210,6 +217,8 @@ def _rebuild(name, frequency, periods, start_date, source):
 				force_update_dpd_in_loan=True)
 	finally:
 		frappe.flags.hp_conversion = previous
+	if application:
+		frappe.db.set_value("Loan", name, "loan_application", application, update_modified=False)
 	check = conv.verify_loan(name)
 	if not check["ok"]:
 		frappe.throw(_("Rebuilt {0} does not agree with MYOB: {1}").format(name, "; ".join(check["problems"])))

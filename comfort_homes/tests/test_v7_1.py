@@ -182,3 +182,13 @@ def test_rebuild_is_gated_and_previewed_by_default():
 	for field in ("custom_hp_opening_outstanding", "custom_hp_opening_unearned", "custom_hp_opening_penalty",
 			"custom_hp_opening_fees", "loan_amount"):
 		assert field not in writes
+
+
+def test_rebuild_unlinks_the_application_like_first_load():
+	"""7.1.1: hooks for new HP contracts key on loan.loan_application; first load ran before the link."""
+	src = (ROOT / "hp_lending" / "hp_rebuild.py").read_text()
+	body = src.split("def _rebuild(")[1].split("\ndef ")[0]
+	unlink = body.index('frappe.db.set_value("Loan", name, "loan_application", None')
+	assert unlink < body.index('_cancel("Loan Demand"') < body.index("doc.import_loan_disbursement(")
+	relink = body.index('frappe.db.set_value("Loan", name, "loan_application", application')
+	assert body.index("conv._date_opening_arrears(doc)") < relink < body.index("check = conv.verify_loan(name)")

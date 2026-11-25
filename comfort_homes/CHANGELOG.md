@@ -1,5 +1,12 @@
 # Comfort Homes — Changelog
 
+## 0.0.7.1.1 — Comfort Homes 7.1.1 (fix to the 7.1 rebuild helper)
+
+**Needs install only** (no patch, no fixtures). One change, in `hp_lending/hp_rebuild.py`:
+
+- **Rebuild no longer wakes the new-contract hooks.** A converted loan is linked to its application only after its first import (hp_conversion). In a rebuild the link was already there, so the hooks for new HP contracts acted on the re-imported disbursement: the application was re-validated (devcom preview refused with "Record the individual client CIRA acknowledgement…") and the gross-booking reclass would have been attempted. The rebuild now unlinks the application for its duration and restores it before verifying, exactly as on first load. The previews that failed rolled back; nothing was posted. Pinned files unchanged.
+- Tests: 490 (one new).
+
 ## 0.0.7.1 — Release 7.1 "Lean and Clean" (baseline)
 
 **Needs install + migrate** (one patch; fixtures: client scripts, web form, workflow transition tasks; reports removed). The patch runs before fixtures sync and is idempotent. Bank-statement import unchanged (decision 26-11-2026: re-basing on native Bank Transactions skipped for now). Batch 5 (F11, F13a–c, F18, F21, F24, F25, F26) was already delivered in dev27/dev28; nothing changed there.
