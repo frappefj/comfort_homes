@@ -183,8 +183,10 @@ def test_all_hook_callables_and_browser_assets_exist():
 
 
 def test_standard_report_and_all_print_document_assets_are_present():
-    path=ROOT/'comfort_homes/report/hp_customer_statement'
-    assert all((path/f'hp_customer_statement.{ext}').is_file() for ext in ['py','js','json'])
+    # 7.1: HP Customer Statement retired (HP Statement of Account print format replaces it)
+    assert not (ROOT/'comfort_homes/report/hp_customer_statement').exists()
+    path=ROOT/'comfort_homes/report/portfolio_control'
+    assert all((path/f'portfolio_control.{ext}').is_file() for ext in ['py','js','json'])
     formats={r['name'] for _,r in records() if r['doctype']=='Print Format'}
     assert len(formats)==9  # dev27: HP Statement of Account
     for _,row in records():
@@ -197,7 +199,7 @@ def test_standard_report_and_all_print_document_assets_are_present():
 def test_individual_cira_is_never_printed_as_the_witness_signature():
     formats={r['name']:r for _,r in records() if r['doctype']=='Print Format'}
     assert 'custom_cira_authority_signature' not in formats['Application Print WIP']['html']
-    assert 'custom_cira_authority_signature' not in (ROOT/'print_formats/assessment_sheet.html').read_text()
+    assert not (ROOT/'print_formats').exists()  # 7.1: stale HTML copies removed; fixtures are the source
     assert 'custom_cira_authority_signature' in formats['CIRA Authority Form']['html']
 
 

@@ -28,7 +28,7 @@ class TestOriginationWiring(unittest.TestCase):
         # from reintroducing the old, premature workflow import.
         self.assertEqual(json.loads((ROOT / "fixtures/workflow.json").read_text()), [])
         self.assertLess(names.index("00_00_role.json"), names.index("00_co_applicant_schema.json"))
-        self.assertLess(names.index("server_script.json"), names.index("workflow_transition_tasks.json"))
+        self.assertNotIn("server_script.json", names)  # 7.1: server scripts are app code
         self.assertLess(names.index("workflow_transition_tasks.json"), names.index("zz_workflow.json"))
 
     def test_export_keeps_dependency_records(self):
@@ -46,7 +46,7 @@ class TestOriginationWiring(unittest.TestCase):
         references = {r["transition_tasks"] for r in workflow["transitions"] if r.get("transition_tasks")}
         self.assertLessEqual(references, group_names)
 
-    def test_replaced_scripts_remain_disabled(self):
-        scripts = {r["name"]: r for r in json.loads((ROOT / "fixtures/server_script.json").read_text())}
+    def test_replaced_scripts_are_deleted_by_the_7_1_patch(self):
+        from comfort_homes.tests.patch_lists import retire_lists; p = retire_lists()
         for name in ("Calculations", "Flexi Flat Repayment Schedule Sync", "Auto Create Draft PO on Loan Activation After Submission"):
-            self.assertTrue(scripts[name]["disabled"], name)
+            self.assertIn(name, p.SERVER_SCRIPTS)

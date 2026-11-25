@@ -1,5 +1,8 @@
 """Portfolio Control: one read-only line per application/loan with a traffic light, worst first.
 
+7.1: the single portfolio view. Flexi Manager Overview is merged in: its fee debt, CHD owed and exception
+checks are columns here, computed with the same set-based queries and one set of rules.
+
 No ledger or status writes. Role gated (Director, Finance Manager, Loan Manager). All data is read with
 a handful of set-based queries, never per-loan lookups. The traffic-light rules are deliberately simple:
 
@@ -33,6 +36,9 @@ ACTIVE_ORDER = STAGES["Active Loan Account"][1]
 CLOSED_ORDER = STAGES["Closed"][1]
 LIGHT_RANK = {"Red": 0, "Orange": 1, "Green": 2, "Grey": 3}
 BUCKET_RANK = {"NPA": 5, "D90": 4, "D60": 3, "D30": 2, "Grace": 1, "Current": 0, "": 0}
+# an LPO should exist from LPO Approved onwards (new contracts only)
+LPO_EXPECTED = ("LPO Approved", "LPO Sent to Supplier", "Delivered - Awaiting Documents", "Active Loan Account")
+LOAN_EXPECTED_ORDER = STAGES["Loan Activated"][1]
 
 
 def require_role():
@@ -78,11 +84,30 @@ def delivery_status(stage_order, state):
     return "Pending" if state == "LPO Sent to Supplier" else "No"
 
 
+def exceptions(app, loan, state, order, has_lpo, lpo_submitted, legacy_fees):
+    """Merged from Flexi Manager Overview. Plain words, '; '-joined. Converted MYOB contracts have no LPO."""
+    out = []
+    converted = bool((app or {}).get("custom_hp_converted")) or (loan is not None and app is None)
+    if app and not converted and state in LPO_EXPECTED and not has_lpo:
+        out.append("Missing LPO")
+    if app and state == "LPO Pending Approval" and lpo_submitted:
+        out.append("LPO submitted, application still pending LPO approval")
+    if app and state == "Active Loan Account" and not converted and (
+            not loan or loan.get("docstatus") != 1 or not flt(loan.get("disbursed_amount"))):
+        out.append("Active application, loan not disbursed")
+    if app and not loan and LOAN_EXPECTED_ORDER <= order < CLOSED_ORDER and not converted:
+        out.append("No loan")
+    if flt(legacy_fees) > 0.005:
+        out.append("Fee invoice linked to the loan (legacy); do not correct")
+    return "; ".join(out)
+
+
 def sort_key(row):
     return (LIGHT_RANK[row["light"]], row["stage_order"] >= CLOSED_ORDER, -BUCKET_RANK[row["bucket"]], -flt(row["idle_hours"]), -flt(row["overdue"]), row["application"] or "")
 
 
-def assemble(apps, loans, demands, next_due, invoices, activity, now, filters=None, co_apps=None, lpo_dates=None):
+def assemble(apps, loans, demands, next_due, invoices, activity, now, filters=None, co_apps=None, lpo_dates=None,
+             orders=None, fees=None):
     """Pure: join already-fetched data into rows. `activity` maps application -> latest datetime."""
     filters = filters or {}
     loan_by_app = {l["loan_application"]: l for l in loans if l.get("loan_application")}
@@ -90,10 +115,10 @@ def assemble(apps, loans, demands, next_due, invoices, activity, now, filters=No
     for app in apps:
         loan = loan_by_app.get(app["name"])
         seen.add(loan["name"] if loan else None)
-        rows.append(_row(app, loan, demands, next_due, invoices, activity, now, co_apps, lpo_dates))
+        rows.append(_row(app, loan, demands, next_due, invoices, activity, now, co_apps, lpo_dates, orders, fees))
     for loan in loans:  # loans with no application (for example imported) still count
         if loan["name"] not in seen and not loan.get("loan_application"):
-            rows.append(_row(None, loan, demands, next_due, invoices, activity, now, co_apps, lpo_dates))
+            rows.append(_row(None, loan, demands, next_due, invoices, activity, now, co_apps, lpo_dates, orders, fees))
     rows = [r for r in rows if _wanted(r, filters)]
     rows.sort(key=sort_key)
     return rows
@@ -105,7 +130,7 @@ def co_app_status(states):
     return "Approved" if all(x == "Approved" for x in states) else "Pending"
 
 
-def _row(app, loan, demands, next_due, invoices, activity, now, co_apps=None, lpo_dates=None):
+def _row(app, loan, demands, next_due, invoices, activity, now, co_apps=None, lpo_dates=None, orders=None, fees=None):
     state = (app or {}).get("workflow_state") or ("Active Loan Account" if loan else "")
     label, order = STAGES.get(state, (state or "Unknown", 0 if not state else 1))
     if loan and loan.get("status") == "Closed": label, order = "Closed", CLOSED_ORDER
@@ -121,6 +146,9 @@ def _row(app, loan, demands, next_due, invoices, activity, now, co_apps=None, lp
     if loan and loan.get("docstatus") == 1:
         balance = round(flt(loan["total_payment"]) - flt(loan["total_principal_paid"])
                         + flt(loan["debit_adjustment_amount"]) - flt(loan["credit_adjustment_amount"]), 2)
+    app_name = (app or {}).get("name")
+    po = (orders or {}).get(app_name) or {}
+    fee = (fees or {}).get((loan or {}).get("name")) or {}
     return dict(
         application=(app or {}).get("name"), loan=(loan or {}).get("name"),
         customer=(app or {}).get("applicant_name") or (loan or {}).get("applicant_name"),
@@ -129,7 +157,10 @@ def _row(app, loan, demands, next_due, invoices, activity, now, co_apps=None, lp
         bucket=bkt, dpd=dpd if bkt else None, overdue=round(flt(d["amount"]), 2) if d else 0.0,
         next_due=next_due.get(loan["name"]) if loan else None, balance=balance,
         pi=pi, delivery=delivery_status(order, state),
-        co_app=co_app_status((co_apps or {}).get((app or {}).get("name"), [])))
+        co_app=co_app_status((co_apps or {}).get((app or {}).get("name"), [])),
+        fees_due=round(flt(fee.get("independent")) + flt(fee.get("legacy")), 2),
+        chd_owed=round(sum(flt(i["outstanding_amount"]) for i in inv), 2),
+        exceptions=exceptions(app, loan, state, order, bool(po.get("any")), bool(po.get("submitted")), fee.get("legacy")))
 
 
 def _wanted(row, f):
@@ -150,7 +181,8 @@ def fetch(filters=None):
         fields=["name", "workflow_state", "custom_branchlocation", "applicant_name", "modified", "custom_hp_converted"], limit_page_length=0)
     loans = frappe.get_all("Loan", filters={"company": s.COMPANY, "docstatus": ["!=", 2]},
         fields=["name", "loan_application", "status", "docstatus", "is_npa", "cost_center", "applicant_name", "modified",
-                "total_payment", "total_principal_paid", "debit_adjustment_amount", "credit_adjustment_amount"], limit_page_length=0)
+                "total_payment", "total_principal_paid", "debit_adjustment_amount", "credit_adjustment_amount",
+                "disbursed_amount"], limit_page_length=0)
     if filters.get("location"):
         keep = {a["name"] for a in apps}
         loans = [l for l in loans if l.get("loan_application") in keep]
@@ -171,6 +203,22 @@ def fetch(filters=None):
     lpo_dates = {r.n: r.d for r in frappe.db.sql("""SELECT custom_loan_application n, MIN(transaction_date) d FROM `tabPurchase Order`
             WHERE docstatus=1 AND company=%s AND custom_loan_application IS NOT NULL AND custom_loan_application != ''
             GROUP BY custom_loan_application""", (s.COMPANY,), as_dict=True)}
+    orders = {r.n: dict(any=r.n_all, submitted=r.n_sub) for r in frappe.db.sql("""SELECT custom_loan_application n,
+            COUNT(*) n_all, SUM(docstatus=1) n_sub FROM `tabPurchase Order`
+            WHERE docstatus<2 AND company=%s AND custom_loan_application IS NOT NULL AND custom_loan_application != ''
+            GROUP BY custom_loan_application""", (s.COMPANY,), as_dict=True)}
+    # open servicing-fee invoices per loan: independent (custom reference) and legacy (native loan link)
+    fees = {}
+    for r in frappe.db.sql("""SELECT custom_hp_reference_loan ref, loan, custom_hp_independent_fee ind, outstanding_amount o
+            FROM `tabSales Invoice` WHERE docstatus=1 AND company=%s AND outstanding_amount>0
+            AND (custom_hp_reference_loan IS NOT NULL AND custom_hp_reference_loan != '' OR loan IS NOT NULL AND loan != '')""",
+            (s.COMPANY,), as_dict=True):
+        if r.loan:
+            entry = fees.setdefault(r.loan, {"legacy": 0, "independent": 0})
+            entry["legacy"] += flt(r.o)
+        elif r.ind and r.ref:
+            entry = fees.setdefault(r.ref, {"legacy": 0, "independent": 0})
+            entry["independent"] += flt(r.o)
     activity = {}
     def bump(name, when):
         if name and when and (name not in activity or when > activity[name]): activity[name] = when
@@ -183,7 +231,8 @@ def fetch(filters=None):
     for r in frappe.get_all("Co-Applicant", filters={"loan_application": ["is", "set"], "docstatus": ["!=", 2]},
                             fields=["loan_application", "workflow_state"], limit_page_length=0):
         co_apps.setdefault(r.loan_application, []).append(r.workflow_state)
-    return assemble(apps, loans, demands, next_due, invoices, activity, now_datetime(), filters, co_apps, lpo_dates)
+    return assemble(apps, loans, demands, next_due, invoices, activity, now_datetime(), filters, co_apps, lpo_dates,
+                    orders, fees)
 
 
 def summary(rows):
@@ -192,7 +241,9 @@ def summary(rows):
     return dict(red=count("Red"), orange=count("Orange"), green=count("Green"),
         npa=sum(1 for r in rows if r["bucket"] == "NPA"),
         overdue=round(sum(flt(r["overdue"]) for r in rows), 2),
-        book=round(sum(flt(r["balance"]) for r in live), 2))
+        book=round(sum(flt(r["balance"]) for r in live), 2),
+        fees=round(sum(flt(r.get("fees_due")) for r in rows), 2),
+        exceptions=sum(1 for r in rows if r.get("exceptions")))
 
 
 def _card(key, fieldtype="Int"):

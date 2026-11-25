@@ -125,7 +125,7 @@ def check_setup():
 			problems.append("Missing custom field: " + field)
 	for dt, name in (("Company", COMPANY), ("Supplier", CHD_SUPPLIER), ("Item", HP_ITEM_CODE),
 		("Loan Product", "HP-STD"), ("Workflow", "Loan Application Workflow-1"),
-		("Web Form", "loan-application-new"), ("Report", "HP Customer Statement"),
+		("Web Form", "loan-application-new"), ("Report", "Portfolio Control"),
 		("Workflow Transition Tasks", "Flexi Generate LPO"), ("Workflow Transition Tasks", "Flexi Loan Application Transition Tasks")):
 		if not frappe.db.exists(dt, name):
 			problems.append("Missing " + dt + ": " + name)

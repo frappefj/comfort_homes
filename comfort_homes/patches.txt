@@ -4,3 +4,4 @@
 
 [post_model_sync]
 # Patches added in this section will be executed after doctypes are migrated
+comfort_homes.patches.v7_1.retire_scripts_and_reports

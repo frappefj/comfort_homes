@@ -167,14 +167,12 @@ def test_fee_configuration_disabled_and_no_trigger_fields_in_native_draft_source
         if isinstance(n,ast.Call) and isinstance(n.func,ast.Attribute):assert n.func.attr not in ('set_value','db_set','submit','cancel','delete_doc','commit')
 
 
-def test_fee_report_counts_invoices_once_and_does_not_query_demands(env,monkeypatch):
-    f,load=env;m=load('hp_lending/hp_portfolio.py');f.get_list=Mock(return_value=[
-        Row(name='NEW',custom_hp_independent_fee=1,custom_hp_reference_loan='L',loan=None,outstanding_amount=2.5),
-        Row(name='OLD',custom_hp_independent_fee=0,loan='L',outstanding_amount=7.5)])
-    result=m.fee_position('L');assert result['independent_fees']==2.5 and result['legacy_fee_exceptions']==7.5
-    assert all(c.args[0]=='Sales Invoice' for c in f.get_list.call_args_list)
-    f.has_permission.return_value=False
-    assert m.fee_position('L')['independent_fees'] is None
+def test_fee_debt_is_counted_once_from_sales_invoices_in_portfolio_control():
+    # 7.1: hp_portfolio.fee_position merged into Portfolio Control (hp_control.fetch, one grouped query)
+    src=(ROOT/'hp_lending/hp_control.py').read_text()
+    assert not (ROOT/'hp_lending/hp_portfolio.py').exists()
+    assert 'FROM `tabSales Invoice`' in src and 'Loan Demand' in src.split('FROM `tabSales Invoice`')[0]
+    assert '"legacy"' in src and '"independent"' in src
 
 
 def test_new_generator_native_permissions_locks_and_stable_link(env,monkeypatch):

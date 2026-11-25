@@ -1,4 +1,4 @@
-"""Director/Manager portfolio snapshot: traffic light per case, most problematic first."""
+"""Portfolio snapshot: traffic light per case, most problematic first. 7.1: the one portfolio view (Flexi Manager Overview merged in)."""
 from comfort_homes.hp_lending import hp_control as c
 
 
@@ -19,6 +19,10 @@ def execute(filters=None):
         dict(fieldname="next_due", label="Next due", fieldtype="Date", width=95),
         dict(fieldname="balance", label="Balance", fieldtype="Currency", width=105),
         text("co_app", "Co-app", 70), text("pi", "PI", 95), text("delivery", "Deliv", 70),
+        # 7.1: merged from Flexi Manager Overview
+        dict(fieldname="fees_due", label="Fees due", fieldtype="Currency", width=90),
+        dict(fieldname="chd_owed", label="CHD owed", fieldtype="Currency", width=95),
+        text("exceptions", "Exceptions", 260),
     ]
     s = c.summary(rows)
     summary = [
@@ -28,6 +32,8 @@ def execute(filters=None):
         dict(value=s["npa"], label="NPA", datatype="Int", indicator="Red"),
         dict(value=s["overdue"], label="Overdue", datatype="Currency", indicator="Red"),
         dict(value=s["book"], label="Active book", datatype="Currency", indicator="Blue"),
+        dict(value=s["fees"], label="Fees due", datatype="Currency", indicator="Orange"),
+        dict(value=s["exceptions"], label="Exceptions", datatype="Int", indicator="Red" if s["exceptions"] else "Green"),
     ]
     order = ["Current", "Grace", "D30", "D60", "D90", "NPA"]
     chart = dict(type="bar", data=dict(labels=order,

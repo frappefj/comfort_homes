@@ -133,11 +133,12 @@ def test_failed_setup_validation_does_not_explicitly_commit(env,monkeypatch):
     f.db.commit.assert_not_called()
 
 
-def test_legacy_api_scripts_have_shared_permission_gate_before_old_body():
-    records=json.loads((ROOT/'fixtures/server_script.json').read_text())
-    scripts=[r for r in records if r['script_type']=='API' and r['name']!='Dynamic Laon P']
-    assert len(scripts)==11
-    for row in scripts:
-        assert row['script'].startswith('frappe.call("comfort_homes.api.check_application_access"'),row['name']
-    customer=next(r for r in records if r['name']=='Flexi Create Customer From Loan Application')
-    assert customer['doctype_event']=='Before Validate'
+def test_legacy_api_scripts_are_retired_and_customer_creation_is_app_code():
+    # 7.1: API server scripts are deleted; the web form's loan-product lookup is a whitelisted app method
+    assert not (ROOT/'fixtures/server_script.json').exists()
+    hooks=(ROOT/'hooks.py').read_text()
+    assert '"comfort_homes.flexi_events.create_customer"' in hooks
+    before_validate=hooks.split('"Loan Application": {')[1].split('"before_validate": [')[1].split(']')[0]
+    assert before_validate.strip().splitlines()[-2].strip().startswith('"comfort_homes.flexi_events.create_customer"')
+    form=json.loads((ROOT/'fixtures/web_form.json').read_text())[0]['client_script']
+    assert 'method: "comfort_homes.flexi_events.get_loan_products"' in form and 'method: "get_loan_products"' not in form

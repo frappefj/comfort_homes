@@ -166,12 +166,10 @@ def test_statement_print_format_renders(env):
 
 
 def test_chd_invoice_age_flags_after_fourteen_days(env):
-	from comfort_homes.hp_lending import hp_portfolio
-	orders = [Row(docstatus=1, transaction_date=date(2026, 11, 1)), Row(docstatus=0, transaction_date=date(2026, 10, 1))]
-	assert hp_portfolio.chd_invoice_age(orders, on=date(2026, 11, 16)) == 15 > hp_portfolio.CHD_INVOICE_DAYS
-	assert hp_portfolio.chd_invoice_age([Row(docstatus=0, transaction_date=date(2026, 10, 1))]) is None
-	src = (ROOT / "hp_lending" / "hp_portfolio.py").read_text()
-	assert 'custom_hp_converted' in src and 'CHD invoice overdue - {age} days' in src
+	# 7.1: Flexi Manager Overview (hp_portfolio) merged into Portfolio Control; the 14-day rule lives in hp_control.pi_status
+	assert not (ROOT / "hp_lending" / "hp_portfolio.py").exists()
+	src = (ROOT / "hp_lending" / "hp_control.py").read_text()
+	assert "CHD_INVOICE_DAYS = 14" in src and 'f"Overdue {age}d"' in src and "custom_hp_converted" in src
 
 
 def test_fixtures_and_wiring():
@@ -190,11 +188,12 @@ def test_fixtures_and_wiring():
 		assert cf["Loan Application-custom_hp_" + f]["read_only"] == 1
 	assert cf["Loan Application-custom_hp_eligibility_override_reason"]["read_only"] == 0
 	assert cf["Customer-custom_hp_pending_application"]["fieldtype"] == "Data"
-	ss = {x["name"]: x for x in json.loads((ROOT / "fixtures" / "server_script.json").read_text())}
-	script = ss["Flexi Create Customer From Loan Application"]["script"]
-	assert "customer.customer_type = 'Individual'" in script and "customer.disabled = 1" in script and "customer.type = 'Company'" not in script
-	assert ss["Loan Application"]["disabled"] == 1 and ss["link documents to loan application"]["disabled"] == 0
-	assert ss["Loan Application"]["script"] == ss["link documents to loan application"]["script"]
+	# 7.1: the customer script is app code; the duplicate "Loan Application" script is deleted by the 7.1 patch
+	src = (ROOT / "flexi_events.py").read_text()
+	body = src.split("def create_customer(")[1].split("\ndef ")[0]
+	assert 'customer.customer_type = "Individual"' in body and "customer.disabled = 1" in body and "Company" not in body
+	assert not (ROOT / "fixtures" / "server_script.json").exists()
+	assert '"comfort_homes.flexi_events.link_documents"' in hooks
 
 
 def test_deposit_refund_reverses_the_receipt(approval):
