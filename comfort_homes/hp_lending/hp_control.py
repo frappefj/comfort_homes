@@ -15,6 +15,7 @@ from comfort_homes.hp_lending import hp_settings as s
 ALLOWED_ROLES = ("Director", "Finance Manager", "Loan Manager")
 IDLE_RED_HOURS = 72
 GRACE_DAYS = 7
+CHD_INVOICE_DAYS = 14  # dev28 (F18): a submitted LPO with no CHD invoice for longer than this is flagged
 NPA_DAYS = 90
 
 # workflow state -> (one-word label, order)
@@ -24,7 +25,7 @@ STAGES = {
     "Ready for Disbursement": ("Disburse", 7), "Loan Activated": ("Activated", 8),
     "LPO Pending Approval": ("LPO", 9), "LPO Approved": ("Release", 10), "LPO Sent to Supplier": ("Sent", 11),
     "Delivered - Awaiting Documents": ("Delivered", 12), "Active Loan Account": ("Active", 13),
-    "Closed": ("Closed", 14), "Rejected": ("Rejected", 0),
+    "Closed": ("Closed", 14), "Rejected": ("Rejected", 0), "Withdrawn": ("Withdrawn", 0),
 }
 STAGE_OPTIONS = [""] + [v[0] for v in sorted(STAGES.values(), key=lambda v: v[1])]
 DELIVERED_ORDER = STAGES["Delivered - Awaiting Documents"][1]
@@ -58,8 +59,14 @@ def light(stage_order, bucket_name, idle_hours):
     return "Red" if idle_hours > IDLE_RED_HOURS else "Orange"
 
 
-def pi_status(invoices):
-    if not invoices: return "None"
+def pi_status(invoices, lpo_date=None, converted=False, on=None):
+    """PI column.  Converted MYOB contracts have no CHD invoice by design ("MYOB").  For new contracts with no
+    invoice: "Waiting Nd" up to CHD_INVOICE_DAYS after the first submitted LPO, then "Overdue Nd"."""
+    if not invoices:
+        if converted: return "MYOB"
+        if not lpo_date: return "None"
+        age = (getdate(on or today()) - getdate(lpo_date)).days
+        return f"Overdue {age}d" if age > CHD_INVOICE_DAYS else f"Waiting {age}d"
     total = sum(flt(i["grand_total"]) for i in invoices)
     out = sum(flt(i["outstanding_amount"]) for i in invoices)
     if out <= 0.005: return "Paid"
@@ -75,7 +82,7 @@ def sort_key(row):
     return (LIGHT_RANK[row["light"]], row["stage_order"] >= CLOSED_ORDER, -BUCKET_RANK[row["bucket"]], -flt(row["idle_hours"]), -flt(row["overdue"]), row["application"] or "")
 
 
-def assemble(apps, loans, demands, next_due, invoices, activity, now, filters=None, co_apps=None):
+def assemble(apps, loans, demands, next_due, invoices, activity, now, filters=None, co_apps=None, lpo_dates=None):
     """Pure: join already-fetched data into rows. `activity` maps application -> latest datetime."""
     filters = filters or {}
     loan_by_app = {l["loan_application"]: l for l in loans if l.get("loan_application")}
@@ -83,10 +90,10 @@ def assemble(apps, loans, demands, next_due, invoices, activity, now, filters=No
     for app in apps:
         loan = loan_by_app.get(app["name"])
         seen.add(loan["name"] if loan else None)
-        rows.append(_row(app, loan, demands, next_due, invoices, activity, now, co_apps))
+        rows.append(_row(app, loan, demands, next_due, invoices, activity, now, co_apps, lpo_dates))
     for loan in loans:  # loans with no application (for example imported) still count
         if loan["name"] not in seen and not loan.get("loan_application"):
-            rows.append(_row(None, loan, demands, next_due, invoices, activity, now, co_apps))
+            rows.append(_row(None, loan, demands, next_due, invoices, activity, now, co_apps, lpo_dates))
     rows = [r for r in rows if _wanted(r, filters)]
     rows.sort(key=sort_key)
     return rows
@@ -98,7 +105,7 @@ def co_app_status(states):
     return "Approved" if all(x == "Approved" for x in states) else "Pending"
 
 
-def _row(app, loan, demands, next_due, invoices, activity, now, co_apps=None):
+def _row(app, loan, demands, next_due, invoices, activity, now, co_apps=None, lpo_dates=None):
     state = (app or {}).get("workflow_state") or ("Active Loan Account" if loan else "")
     label, order = STAGES.get(state, (state or "Unknown", 0 if not state else 1))
     if loan and loan.get("status") == "Closed": label, order = "Closed", CLOSED_ORDER
@@ -109,6 +116,7 @@ def _row(app, loan, demands, next_due, invoices, activity, now, co_apps=None):
     last = activity.get((app or {}).get("name")) or (app or loan or {}).get("modified")
     idle = round((now - last).total_seconds() / 3600, 1) if last else 0.0
     inv = invoices.get((app or {}).get("name"), [])
+    pi = pi_status(inv, (lpo_dates or {}).get((app or {}).get("name")), bool((app or {}).get("custom_hp_converted")) or (not app and bool(loan)))
     balance = None
     if loan and loan.get("docstatus") == 1:
         balance = round(flt(loan["total_payment"]) - flt(loan["total_principal_paid"])
@@ -117,10 +125,10 @@ def _row(app, loan, demands, next_due, invoices, activity, now, co_apps=None):
         application=(app or {}).get("name"), loan=(loan or {}).get("name"),
         customer=(app or {}).get("applicant_name") or (loan or {}).get("applicant_name"),
         location=(app or {}).get("custom_branchlocation") or (loan or {}).get("cost_center"),
-        stage=label, stage_order=order, light=light(order, bkt, idle), idle_hours=idle,
+        stage=label, stage_order=order, light="Red" if pi.startswith("Overdue") and order < CLOSED_ORDER else light(order, bkt, idle), idle_hours=idle,
         bucket=bkt, dpd=dpd if bkt else None, overdue=round(flt(d["amount"]), 2) if d else 0.0,
         next_due=next_due.get(loan["name"]) if loan else None, balance=balance,
-        pi=pi_status(inv), delivery=delivery_status(order, state),
+        pi=pi, delivery=delivery_status(order, state),
         co_app=co_app_status((co_apps or {}).get((app or {}).get("name"), [])))
 
 
@@ -129,7 +137,7 @@ def _wanted(row, f):
     if f.get("light") and row["light"] != f["light"]: return False
     if f.get("bucket") and row["bucket"] != f["bucket"]: return False
     if not f.get("include_closed", 1) and row["stage"] == "Closed": return False
-    if not f.get("include_rejected", 0) and row["stage"] == "Rejected": return False
+    if not f.get("include_rejected", 0) and row["stage"] in ("Rejected", "Withdrawn"): return False
     return True
 
 
@@ -139,7 +147,7 @@ def fetch(filters=None):
     q = {"company": s.COMPANY, "docstatus": ["!=", 2]}
     if filters.get("location"): q["custom_branchlocation"] = filters["location"]
     apps = frappe.get_all("Loan Application", filters=q,
-        fields=["name", "workflow_state", "custom_branchlocation", "applicant_name", "modified"], limit_page_length=0)
+        fields=["name", "workflow_state", "custom_branchlocation", "applicant_name", "modified", "custom_hp_converted"], limit_page_length=0)
     loans = frappe.get_all("Loan", filters={"company": s.COMPANY, "docstatus": ["!=", 2]},
         fields=["name", "loan_application", "status", "docstatus", "is_npa", "cost_center", "applicant_name", "modified",
                 "total_payment", "total_principal_paid", "debit_adjustment_amount", "credit_adjustment_amount"], limit_page_length=0)
@@ -160,6 +168,9 @@ def fetch(filters=None):
     for r in frappe.get_all("Purchase Invoice", filters={"company": s.COMPANY, "docstatus": 1, "custom_loan_application": ["is", "set"]},
                             fields=["custom_loan_application", "grand_total", "outstanding_amount"], limit_page_length=0):
         invoices.setdefault(r.custom_loan_application, []).append(r)
+    lpo_dates = {r.n: r.d for r in frappe.db.sql("""SELECT custom_loan_application n, MIN(transaction_date) d FROM `tabPurchase Order`
+            WHERE docstatus=1 AND company=%s AND custom_loan_application IS NOT NULL AND custom_loan_application != ''
+            GROUP BY custom_loan_application""", (s.COMPANY,), as_dict=True)}
     activity = {}
     def bump(name, when):
         if name and when and (name not in activity or when > activity[name]): activity[name] = when
@@ -172,7 +183,7 @@ def fetch(filters=None):
     for r in frappe.get_all("Co-Applicant", filters={"loan_application": ["is", "set"], "docstatus": ["!=", 2]},
                             fields=["loan_application", "workflow_state"], limit_page_length=0):
         co_apps.setdefault(r.loan_application, []).append(r.workflow_state)
-    return assemble(apps, loans, demands, next_due, invoices, activity, now_datetime(), filters, co_apps)
+    return assemble(apps, loans, demands, next_due, invoices, activity, now_datetime(), filters, co_apps, lpo_dates)
 
 
 def summary(rows):

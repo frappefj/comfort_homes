@@ -122,3 +122,29 @@ def test_dev13_row_has_co_app(c):
     assert rows[0]["co_app"] == "Pending"
     rows = c.assemble([app], [], {}, {}, {}, {}, NOW)
     assert rows[0]["co_app"] == "None"
+
+
+# dev28: CHD invoice ageing (F18) and the Withdrawn stage
+import pytest  # noqa: E402
+
+
+@pytest.mark.parametrize("invoices,lpo,converted,expected", [
+    ([], None, True, "MYOB"), ([], None, False, "None"), ([], "2026-11-20", False, "Waiting 5d"),
+    ([], "2026-11-11", False, "Waiting 14d"), ([], "2026-11-10", False, "Overdue 15d"),
+    ([{"grand_total": 100, "outstanding_amount": 0}], "2026-10-01", False, "Paid")])
+def test_portfolio_control_chd_invoice_column(c, invoices, lpo, converted, expected):
+    hp_control = c
+    assert hp_control.pi_status(invoices, lpo, converted, on="2026-11-25") == expected
+
+
+def test_portfolio_control_overdue_invoice_is_red_and_withdrawn_is_grey(c):
+    from datetime import datetime
+    hp_control = c
+    now = datetime(2026, 11, 25, 12, 0)
+    app = {"name": "A", "workflow_state": "Active Loan Account", "applicant_name": "X", "modified": now, "custom_hp_converted": 0}
+    loan = {"name": "L", "loan_application": "A", "status": "Disbursed", "docstatus": 1, "is_npa": 0, "modified": now,
+        "total_payment": 1000, "total_principal_paid": 0, "debit_adjustment_amount": 0, "credit_adjustment_amount": 0}
+    row = hp_control._row(app, loan, {}, {}, {}, {}, now, {}, {"A": "2026-11-01"})
+    assert row["pi"].startswith("Overdue") and row["light"] == "Red"
+    gone = hp_control._row({**app, "workflow_state": "Withdrawn"}, None, {}, {}, {}, {}, now, {}, {})
+    assert gone["light"] == "Grey" and not hp_control._wanted(gone, {})

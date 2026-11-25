@@ -211,3 +211,4 @@ def test_deposit_refund_reverses_the_receipt(approval):
 	assert out == {"payment_entry": "PE-REF", "existing": False} and pe.payment_type == "Pay"
 	assert pe.paid_from == "1201 - BANK" and pe.paid_to == "2010 - DEP" and pe.paid_amount == 300.0 and pe.reference_no == "HP-DEP-REFUND-APP"
 	pe.insert.assert_called_once_with()
+
