@@ -1,3 +1,0 @@
-# Reference: frappe/lending v16.8.1, native stored-DPD condition
-if days_past_due and threshold and days_past_due > threshold:
-				is_npa = 1
