@@ -1,0 +1,5 @@
+{
+  "source": "Observed read-only UAT Calculations script, matched to supplied archive",
+  "script_sha256": "a25bae28a23c1e2397e616908fff520a34dd819a84d7595df833146d59e99291",
+  "execution": "Tests only, with all database/network operations blocked"
+}

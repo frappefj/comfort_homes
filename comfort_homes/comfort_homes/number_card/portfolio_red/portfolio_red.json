@@ -1,0 +1,13 @@
+{
+  "doctype": "Number Card",
+  "name": "Portfolio Red",
+  "label": "Red cases",
+  "type": "Custom",
+  "method": "comfort_homes.hp_lending.hp_control.card_red",
+  "is_standard": 1,
+  "is_public": 1,
+  "module": "Comfort Homes",
+  "show_percentage_stats": 0,
+  "filters_json": "[]",
+  "dynamic_filters_json": "[]"
+}

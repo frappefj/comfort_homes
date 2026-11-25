@@ -1,0 +1,57 @@
+{
+  "doctype": "Workspace",
+  "name": "Portfolio Control",
+  "label": "Portfolio Control",
+  "title": "Portfolio Control",
+  "module": "Comfort Homes",
+  "public": 1,
+  "icon": "chart",
+  "is_hidden": 0,
+  "content": "[{\"id\": \"h1\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Portfolio Control</b></span>\", \"col\": 12}}, {\"id\": \"c0\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Portfolio Red\", \"col\": 3}}, {\"id\": \"c1\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Portfolio Orange\", \"col\": 3}}, {\"id\": \"c2\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Portfolio Green\", \"col\": 3}}, {\"id\": \"c3\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Portfolio NPA\", \"col\": 3}}, {\"id\": \"c4\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Portfolio Overdue\", \"col\": 4}}, {\"id\": \"sp\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"s1\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Portfolio Control\", \"col\": 4}}]",
+  "roles": [
+    {
+      "role": "Director"
+    },
+    {
+      "role": "Finance Manager"
+    },
+    {
+      "role": "Loan Manager"
+    }
+  ],
+  "number_cards": [
+    {
+      "number_card_name": "Portfolio Red",
+      "label": "Red cases"
+    },
+    {
+      "number_card_name": "Portfolio Orange",
+      "label": "Orange cases"
+    },
+    {
+      "number_card_name": "Portfolio Green",
+      "label": "Green cases"
+    },
+    {
+      "number_card_name": "Portfolio NPA",
+      "label": "NPA loans"
+    },
+    {
+      "number_card_name": "Portfolio Overdue",
+      "label": "Overdue amount"
+    }
+  ],
+  "shortcuts": [
+    {
+      "label": "Portfolio Control",
+      "link_to": "Portfolio Control",
+      "type": "Report",
+      "doc_view": "",
+      "color": "Grey"
+    }
+  ],
+  "links": [],
+  "charts": [],
+  "custom_blocks": [],
+  "quick_lists": []
+}
