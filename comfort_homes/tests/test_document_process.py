@@ -364,19 +364,23 @@ def test_profile_workflow_has_no_financial_tasks_or_submit_states():
     assert all(not t.get('transition_tasks') and not t.get('condition') for t in profile['transitions'])
     schema=json.loads((ROOT/'fixtures/00_co_applicant_schema.json').read_text())[0]
     assert schema['is_submittable']==0 and schema['track_changes']==1
-    scripts=json.loads((ROOT/'fixtures/server_script.json').read_text())
-    financial=[s for s in scripts if s.get('reference_doctype')=='Co-Applicant' and 'PO' in s['name']]
-    assert len(financial)==2 and all(s['disabled'] for s in financial)
+    # 7.1: the disabled Co-Applicant PO server scripts are deleted, not shipped
+    assert not (ROOT/'fixtures/server_script.json').exists()
+    from comfort_homes.tests.patch_lists import retire_lists; p = retire_lists()
+    assert {'Auto Create Draft PO on Loan Activation - Co-Applicant','Auto Create Draft PO on Loan Activation After Submission - Co-Applicant'} <= set(p.SERVER_SCRIPTS)
 
 
 def test_digital_contract_mutation_apis_are_gated_but_cira_is_retained():
     assert DIGITAL_CONTRACT_SIGNING_ENABLED is False
-    records=json.loads((ROOT/'fixtures/server_script.json').read_text())
+    # 7.1: the dormant digital-signing and print API server scripts are deleted (signing stays disabled;
+    # the guarded HP Agreement handlers remain in agreement_signing.py)
+    from comfort_homes.tests.patch_lists import retire_lists; p = retire_lists()
     names={'FLEXI DOCUMENT CUSTOMER SIGN','FLEXI DOCUMENT DIRECTOR SIGN','HP AGREEMENT CUSTOMER SIGN',
-           'HP AGREEMENT DIRECTOR SIGN','HIRE PURCHASE AGREEMENT','form1_print','form2_print','schedule1_print'}
-    for r in records:
-        if r['name'] in names: assert 'contract_signing=1' in r['script'].splitlines()[0]
-    assert next(r for r in records if r['name']=='Attach signed CIRA Authority PDF')['disabled']
+           'HP AGREEMENT DIRECTOR SIGN','HIRE PURCHASE AGREEMENT','form1_print','form2_print','schedule1_print',
+           'Attach signed CIRA Authority PDF'}
+    assert names <= set(p.SERVER_SCRIPTS) and not (ROOT/'fixtures/server_script.json').exists()
+    clients={r['name'] for r in json.loads((ROOT/'fixtures/client_script.json').read_text())}
+    assert not {'Flexi Customer Document Signing','Flexi Customer Document Signing Order'} & clients
     fmt=next(r for r in json.loads((ROOT/'fixtures/print_format.json').read_text()) if r['name']=='CIRA Authority Form')
     assert 'doc.custom_hp_cira_signed_on' in fmt['html'] and 'doc.application_date' not in fmt['html']
 

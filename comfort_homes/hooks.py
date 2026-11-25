@@ -116,8 +116,6 @@ fixtures = [
 	{
 		"dt": "Client Script",
 		"filters": [["name", "in", [
-			"Flexi Customer Document Signing",
-			"Flexi Customer Document Signing Order",
 			"Flexi Loan Bank Reconciliation",
 			"Loan Application",
 			"Co-Applicant",
@@ -127,41 +125,6 @@ fixtures = [
 			"Flexi Employment Period Calculation - Co-Applicant",
 			"Flexi CIRA Authority Desk Flow",
 			"Flexi Loan Application Calculations",
-		]]],
-	},
-	{
-		"dt": "Server Script",
-		"filters": [["name", "in", [
-			"Attach signed CIRA Authority PDF",
-			"Auto Create Draft PO on Loan Activation",
-			"Auto Create Draft PO on Loan Activation - Co-Applicant",
-			"Auto Create Draft PO on Loan Activation After Submission",
-			"Auto Create Draft PO on Loan Activation After Submission - Co-Applicant",
-			"Calculations",
-			"Dynamic Laon P",
-			"FLEXI DOCUMENT CUSTOMER SIGN",
-			"FLEXI DOCUMENT DIRECTOR SIGN",
-			"FLEXI DOCUMENT PREVIEW",
-			"FLEXI DOCUMENT SYNC",
-			"Flexi Copy HP Items to Loan",
-			"Flexi Create Customer From Loan Application",
-			"Flexi Default Customer Agreements",
-			"Flexi Default Loan Disbursement Payment Method",
-			"Flexi Default Loan Repayment Payment Method",
-			"Flexi Flat Repayment Schedule Sync",
-			"Flexi Loan Application Workflow Task",
-			"Flexi Prepare Loan Amount",
-			"Flexi Sync Prepared By From Assignment",
-			"HIRE PURCHASE AGREEMENT",
-			"HP AGREEMENT CUSTOMER SIGN",
-			"HP AGREEMENT DIRECTOR SIGN",
-			"HP AGREEMENT PREVIEW",
-			"Loan Application",
-			"Loan Status Updation",
-			"form1_print",
-			"form2_print",
-			"link documents to loan application",
-			"schedule1_print",
 		]]],
 	},
 	{
@@ -213,11 +176,13 @@ doc_events = {
 		"before_validate": [
 			"comfort_homes.loan_mapping.apply_loan_application_values",
 			"comfort_homes.loan_mapping.apply_temporary_repayment_tenure",
+			"comfort_homes.flexi_events.copy_hp_items_to_loan",  # 7.1: was a Server Script
 		],
 		# dev14 MYOB conversion: opening position of an imported, converted HP loan.
 		"on_submit": "comfort_homes.hp_lending.hp_conversion.on_loan_submit",
 	},
 	"Loan Repayment": {
+		"before_validate": "comfort_homes.flexi_events.default_repayment_mode",  # 7.1: was a Server Script
 		"validate": "comfort_homes.hp_lending.hp_conversion.guard_repayment_account",
 	},
 	"Loan Disbursement": {
@@ -227,6 +192,7 @@ doc_events = {
 		"before_validate": [
 			"comfort_homes.loan_mapping.apply_loan_values_to_disbursement",
 			"comfort_homes.loan_mapping.apply_temporary_repayment_tenure_to_disbursement",
+			"comfort_homes.flexi_events.default_disbursement_mode",  # 7.1: was a Server Script
 		]
 	},
 	"Loan Write Off": {
@@ -252,7 +218,16 @@ doc_events = {
             "comfort_homes.hp_lending.hp_intake.validate_locations",
 			"comfort_homes.hp_lending.hp_lifecycle.validate_deposit_payment",
 			"comfort_homes.hp_lending.hp_workflow.require_deposit_before_contract",
+			# 7.1: former Server Scripts, last as before (Frappe ran server scripts after app hooks)
+			"comfort_homes.flexi_events.create_customer",
+			"comfort_homes.flexi_events.prepare_loan_amount",
 		],
+		# 7.1: former Server Scripts "Before Save" (= validate) and "After Save" (= on_update)
+		"validate": ["comfort_homes.flexi_events.default_customer_agreements", "comfort_homes.flexi_events.status_display"],
+		"on_update": "comfort_homes.flexi_events.link_documents",
+	},
+	"ToDo": {
+		"on_update": "comfort_homes.flexi_events.sync_prepared_by",  # 7.1: was a Server Script
 	},
 	"Co-Applicant": {
 		"before_validate": "comfort_homes.origination.apply_profile",
@@ -521,4 +496,4 @@ scheduler_events = {
 # ignore_translatable_strings_from = []
 
 # Native workflow task; no direct status or GL edits.
-workflow_methods = [{"name": "Flexi Submit Approved LPO", "method": "comfort_homes.hp_lending.hp_workflow.submit_approved_lpo"}, {"name": "Flexi Generate Draft LPO", "method": "comfort_homes.hp_lending.hp_workflow.generate_lpo"}]
+workflow_methods = [{"name": "Flexi Loan Application Task", "method": "comfort_homes.flexi_events.application_transition"}, {"name": "Flexi Submit Approved LPO", "method": "comfort_homes.hp_lending.hp_workflow.submit_approved_lpo"}, {"name": "Flexi Generate Draft LPO", "method": "comfort_homes.hp_lending.hp_workflow.generate_lpo"}]

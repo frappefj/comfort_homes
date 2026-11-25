@@ -17,8 +17,7 @@
   "tasks": [
    {
     "doctype": "Workflow Transition Task",
-    "task": "Server Script",
-    "link": "Flexi Loan Application Workflow Task",
+    "task": "Flexi Loan Application Task",
     "enabled": 1,
     "asynchronous": 0
    }
