@@ -26,6 +26,7 @@ doctype_js = {
         "public/js/hp_workflow_handoff.js",
         "public/js/hp_document_status.js",
         "public/js/loan_application_co_applicants_panel.js",
+        "public/js/hp_application_controls.js",
 	]
 }
 extend_doctype_class = {
@@ -77,6 +78,7 @@ fixtures = [
 			"Consent Form",
 			"Application Print WIP",
 			"CIRA Authority Form",
+			"HP Statement of Account",
 		]]],
 	},
 	{
@@ -238,8 +240,8 @@ doc_events = {
 	},
 	"Loan Application": {
 		"before_update_after_submit": "comfort_homes.hp_lending.hp_workflow.validate_progress",
-		"before_save": ["comfort_homes.loan_application_workflow.calculate_financials", "comfort_homes.document_controls.validate_application", "comfort_homes.hp_lending.hp_workflow.validate_progress"],
-		"before_submit": ["comfort_homes.loan_application_workflow.calculate_financials", "comfort_homes.document_controls.validate_application", "comfort_homes.hp_lending.hp_workflow.validate_progress"],
+		"before_save": ["comfort_homes.loan_application_workflow.calculate_financials", "comfort_homes.document_controls.validate_application", "comfort_homes.hp_lending.hp_workflow.validate_progress", "comfort_homes.hp_lending.hp_approval.bind_approval"],
+		"before_submit": ["comfort_homes.loan_application_workflow.calculate_financials", "comfort_homes.document_controls.validate_application", "comfort_homes.hp_lending.hp_workflow.validate_progress", "comfort_homes.hp_lending.hp_approval.bind_approval"],
 		"before_insert": "comfort_homes.loan_application_workflow.validate_public_application_not_existing_customer",
 		"before_validate": [
 			"comfort_homes.loan_mapping.enforce_repayment_method",
@@ -417,6 +419,10 @@ scheduler_events = {
 		"30 1 * * *": [
 			"comfort_homes.hp_lending.hp_credit.apply_credit",
 			"comfort_homes.hp_lending.hp_penalty_retest.retest_penalties",
+		],
+		# dev27: quarterly statements for the quarter just ended.
+		"30 6 1 1,4,7,10 *": [
+			"comfort_homes.hp_lending.hp_statement.quarterly_statements",
 		],
 		"30 2 1 * *": [
 			"comfort_homes.hp_lending.hp_interest.release_deferred_interest",

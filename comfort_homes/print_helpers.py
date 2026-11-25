@@ -100,3 +100,9 @@ def co_applicant_monthly_income(co_applicant):
 def co_applicant_financial_obligations(co_applicant):
 	"""Return the stored monthly existing obligations for assessment display."""
 	return co_applicant.get("custom_flexi_total_finance_obligations") or 0
+
+
+def hp_statement(doc):
+	"""dev27: Statement of Account figures for the HP Statement of Account print format."""
+	from comfort_homes.hp_lending.hp_statement import statement_data
+	return statement_data(doc.name, doc.get("statement_from"), doc.get("statement_to"))

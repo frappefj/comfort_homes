@@ -186,7 +186,7 @@ def test_standard_report_and_all_print_document_assets_are_present():
     path=ROOT/'comfort_homes/report/hp_customer_statement'
     assert all((path/f'hp_customer_statement.{ext}').is_file() for ext in ['py','js','json'])
     formats={r['name'] for _,r in records() if r['doctype']=='Print Format'}
-    assert len(formats)==8
+    assert len(formats)==9  # dev27: HP Statement of Account
     for _,row in records():
         if row['doctype']=='Loan Document Template' and row.get('print_format'):
             assert row['print_format'] in formats

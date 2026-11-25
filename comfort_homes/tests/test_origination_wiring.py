@@ -19,7 +19,7 @@ class TestOriginationWiring(unittest.TestCase):
         events = assignment("doc_events")
         callback = "comfort_homes.loan_application_workflow.calculate_financials"
         self.assertIn(callback, events["Loan Application"]["before_validate"])
-        self.assertEqual(events["Loan Application"]["before_save"], [callback, "comfort_homes.document_controls.validate_application", "comfort_homes.hp_lending.hp_workflow.validate_progress"])
+        self.assertEqual(events["Loan Application"]["before_save"], [callback, "comfort_homes.document_controls.validate_application", "comfort_homes.hp_lending.hp_workflow.validate_progress", "comfort_homes.hp_lending.hp_approval.bind_approval"])
         self.assertEqual(events["Co-Applicant"]["before_validate"], "comfort_homes.origination.apply_profile")
 
     def test_dependencies_precede_workflow(self):

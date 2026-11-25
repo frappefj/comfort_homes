@@ -216,7 +216,7 @@ def test_both_lpo_approval_roles_have_native_submit_task_and_update_after_submit
     assert all(t['transition_tasks']=='Flexi Approve LPO' for t in approval)
     scope={};exec(compile(ast.parse((ROOT/'hooks.py').read_text()),'<hooks>','exec'),scope)
     assert scope['doc_events']['Loan Application']['before_update_after_submit'].endswith('validate_progress')
-    assert len(w['states'])==15 and len(w['transitions'])==20
+    assert len(w['states'])==16 and len(w['transitions'])==30  # dev27: Withdrawn + 10 Withdraw transitions
 
 
 def test_reclass_uses_actual_gl_posting_date_not_historical_value_date(env,monkeypatch):

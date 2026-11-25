@@ -132,17 +132,81 @@ def apply_application(doc, method=None):
     apply_default_charge_terms(doc)
     try:
         profile = _profile(doc)
+        # dev27 (F13c): the customer's existing Flexi instalments are obligations too.
+        existing = existing_flexi_monthly(doc)
+        _set(doc, "custom_hp_existing_flexi_monthly", money(existing))
+        if existing:
+            profile["obligations_exact"] += existing
+            profile["fields"]["custom_flexi_total_finance_obligations"] = money(profile["obligations_exact"])
+            profile["fields"]["custom_flexi_dsr_net_income"] = money(profile["income_exact"] - profile["obligations_exact"])
+            for field in ("custom_flexi_total_finance_obligations", "custom_flexi_dsr_net_income"):
+                _set(doc, field, profile["fields"][field])
         rows = doc.get("custom_flexi_purchase_items") or []
         contract = contract_values(doc, rows)
         for row, total in zip(rows, contract["line_totals"]):
             row.set("total_amount", total)
-        fields = {**contract["fields"], **assessment_values(
+        primary = assessment_values(
             profile, contract, doc.get("custom_flexi_selected_dsr"), doc.get("custom_flexi_payment_period"),
-        )}
+        )
+        fields = {**contract["fields"], **primary}
         for field, value in fields.items():
             _set(doc, field, value)
+        apply_joint_assessment(doc, profile, contract, primary)
     except (ValueError, TypeError, OverflowError) as error:
         frappe.throw(str(error), title="Origination Calculation")
+
+
+MONTHLY_FACTOR = {"Weekly": 52 / 12, "Bi-Weekly": 26 / 12, "Fortnightly": 26 / 12, "Monthly": 1}
+
+
+def existing_flexi_monthly(doc):
+    """dev27 (F13c): monthly equivalent of the next instalment on each of the customer's open Flexi loans."""
+    from comfort_homes.hp_lending import hp_settings as s
+    if doc.get("company") != s.COMPANY or not doc.get("applicant") or doc.get("custom_hp_converted"):
+        return 0.0
+    total = 0.0
+    loans = frappe.get_all("Loan", filters={"applicant": doc.applicant, "company": s.COMPANY, "docstatus": 1,
+        "status": ["in", ["Disbursed", "Partially Disbursed"]]}, fields=["name", "repayment_frequency", "loan_application"])
+    for loan in loans:
+        if doc.name and loan.loan_application == doc.name:
+            continue
+        row = frappe.db.sql(
+            """SELECT rs.total_payment FROM `tabRepayment Schedule` rs
+               JOIN `tabLoan Repayment Schedule` lrs ON lrs.name = rs.parent
+               WHERE lrs.loan = %s AND lrs.docstatus = 1 AND lrs.status = 'Active' AND rs.payment_date >= CURDATE()
+               ORDER BY rs.payment_date LIMIT 1""", (loan.name,))
+        if row and row[0][0]:
+            total += float(row[0][0]) * MONTHLY_FACTOR.get(loan.repayment_frequency, 1)
+    return total
+
+
+def joint_profile(profile, co_applicants):
+    """Pure: household income and obligations, primary plus each co-applicant's recorded monthly totals."""
+    from comfort_homes.hp_lending.origination_math import number
+    income = profile["income_exact"] + sum(number(p.get("custom_flexi_total_monthly_income")) for p in co_applicants)
+    obligations = profile["obligations_exact"] + sum(number(p.get("custom_flexi_total_finance_obligations")) for p in co_applicants)
+    return {**profile, "income_exact": income, "obligations_exact": obligations}
+
+
+def apply_joint_assessment(doc, profile, contract, primary):
+    """dev27 (F13b): store the joint (household) assessment the Application Print WIP shows, and the
+    eligibility the approval decision rests on: joint when there are co-applicants, else the primary."""
+    try:
+        from comfort_homes.print_helpers import get_co_applicants
+        co_applicants = get_co_applicants(doc) if doc.name else []
+    except Exception:
+        co_applicants = []
+    if co_applicants:
+        joint = joint_profile(profile, co_applicants)
+        values = assessment_values(joint, contract, doc.get("custom_flexi_selected_dsr"), doc.get("custom_flexi_payment_period"))
+        _set(doc, "custom_hp_joint_monthly_income", money(joint["income_exact"]))
+        _set(doc, "custom_hp_joint_monthly_obligations", money(joint["obligations_exact"]))
+        _set(doc, "custom_hp_joint_post_dsr", values["custom_flexi_post_dsr"])
+        _set(doc, "custom_hp_decision_eligibility", values["custom_flexi_eligibility_status"])
+    else:
+        for field in ("custom_hp_joint_monthly_income", "custom_hp_joint_monthly_obligations", "custom_hp_joint_post_dsr"):
+            _set(doc, field, 0)
+        _set(doc, "custom_hp_decision_eligibility", primary["custom_flexi_eligibility_status"])
 
 
 def block_unbookable_fees(doc):

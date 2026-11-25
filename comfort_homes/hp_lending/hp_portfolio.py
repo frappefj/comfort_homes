@@ -1,6 +1,6 @@
 """Current-state native-document overview. Read-only, permission filtered, no status engine."""
 import frappe
-from frappe.utils import flt
+from frappe.utils import flt, getdate, today
 from comfort_homes.hp_lending import hp_settings as s
 
 
@@ -22,6 +22,16 @@ def fee_position(loan_name):
     return dict(independent_fees=round(independent,2),legacy_fee_exceptions=round(legacy,2),invoices=rows)
 
 
+CHD_INVOICE_DAYS=14
+LPO_EXPECTED=("LPO Approved","LPO Sent to Supplier","Delivered - Awaiting Documents","Active Loan Account")
+
+
+def chd_invoice_age(orders, on=None):
+    """Days since the oldest submitted LPO, or None when no LPO has been submitted."""
+    dates=[getdate(r.get("transaction_date")) for r in orders if r.docstatus==1 and r.get("transaction_date")]
+    return (getdate(on or today())-min(dates)).days if dates else None
+
+
 def portfolio(filters=None):
     filters=filters or {};query={"company":s.COMPANY,"docstatus":["!=",2]}
     if filters.get("loan"):query["name"]=filters["loan"]
@@ -34,11 +44,17 @@ def portfolio(filters=None):
         balance=round(flt(loan.total_payment)-flt(loan.total_principal_paid)+flt(loan.debit_adjustment_amount)-flt(loan.credit_adjustment_amount),2) if loan.docstatus==1 else None
         fees=fee_position(loan.name)
         app=frappe.get_doc("Loan Application",loan.loan_application) if loan.loan_application and frappe.has_permission("Loan Application","read",doc=loan.loan_application) else None
-        orders=_rows("Purchase Order",{"custom_loan_application":loan.loan_application,"company":s.COMPANY,"docstatus":["!=",2]},["name","docstatus","status","grand_total","per_billed","per_received"]) if app else None
+        orders=_rows("Purchase Order",{"custom_loan_application":loan.loan_application,"company":s.COMPANY,"docstatus":["!=",2]},["name","docstatus","status","grand_total","per_billed","per_received","transaction_date"]) if app else None
         invoices=_rows("Purchase Invoice",{"custom_loan_application":loan.loan_application,"company":s.COMPANY,"docstatus":1},["name","grand_total","outstanding_amount","due_date"]) if app else None
         exceptions=[]
-        if orders is not None and not orders: exceptions.append("Missing LPO")
-        if invoices is not None and not invoices: exceptions.append("Missing CHD invoice")
+        # dev27 (F18): converted MYOB contracts have no LPO or CHD invoice by design.  For new contracts an
+        # LPO is expected once it is approved, and a CHD invoice within CHD_INVOICE_DAYS of the LPO.
+        converted=bool(app and app.get("custom_hp_converted"))
+        if not converted and orders is not None and not orders and app and app.workflow_state in LPO_EXPECTED:
+            exceptions.append("Missing LPO")
+        if not converted and invoices is not None and not invoices and orders:
+            age=chd_invoice_age(orders)
+            if age is not None and age>CHD_INVOICE_DAYS: exceptions.append(f"CHD invoice overdue - {age} days")
         if fees["legacy_fee_exceptions"]: exceptions.append("Legacy native-linked fee debt; do not correct")
         if app and app.workflow_state=="LPO Pending Approval" and orders and any(r.docstatus==1 for r in orders): exceptions.append("PO submitted/application pending approval")
         if app and app.workflow_state=="Active Loan Account" and (loan.docstatus!=1 or not flt(loan.disbursed_amount)):exceptions.append("Active application/not financially disbursed")

@@ -34,6 +34,21 @@ frappe.ui.form.on("Loan", {
 			d.show();
 		}, __("HP"));
 
+		frm.add_custom_button(__("Statement"), () => {
+			const d = new frappe.ui.Dialog({
+				title: __("Statement of Account"),
+				fields: [{ fieldname: "from_date", fieldtype: "Date", label: __("From"), default: frm.doc.posting_date },
+					{ fieldname: "to_date", fieldtype: "Date", label: __("To"), default: frappe.datetime.get_today(), reqd: 1 }],
+				primary_action_label: __("Download PDF"),
+				primary_action(v) {
+					const q = new URLSearchParams({ loan: frm.doc.name, from_date: v.from_date || "", to_date: v.to_date });
+					window.open(`/api/method/comfort_homes.hp_lending.hp_statement.download_statement?${q}`);
+					d.hide();
+				},
+			});
+			d.show();
+		}, __("HP"));
+
 		if (!finance) return;
 		if (["Disbursed", "Partially Disbursed"].includes(frm.doc.status)) {
 			frm.add_custom_button(__("Confirm Settlement"), () => {
