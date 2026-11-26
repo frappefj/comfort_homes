@@ -7,7 +7,7 @@
   "public": 1,
   "icon": "chart",
   "is_hidden": 0,
-  "content": "[{\"id\": \"h1\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Portfolio Control</b></span>\", \"col\": 12}}, {\"id\": \"c0\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Portfolio Red\", \"col\": 3}}, {\"id\": \"c1\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Portfolio Orange\", \"col\": 3}}, {\"id\": \"c2\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Portfolio Green\", \"col\": 3}}, {\"id\": \"c3\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Portfolio NPA\", \"col\": 3}}, {\"id\": \"c4\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Portfolio Overdue\", \"col\": 4}}, {\"id\": \"sp\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"s1\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Portfolio Control\", \"col\": 4}}]",
+  "content": "[{\"id\": \"h1\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Portfolio Control</b></span>\", \"col\": 12}}, {\"id\": \"c0\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Portfolio Red\", \"col\": 3}}, {\"id\": \"c1\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Portfolio Orange\", \"col\": 3}}, {\"id\": \"c2\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Portfolio Green\", \"col\": 3}}, {\"id\": \"c3\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Portfolio NPA\", \"col\": 3}}, {\"id\": \"c4\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Portfolio Overdue\", \"col\": 4}}, {\"id\": \"c5\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Collected Today\", \"col\": 4}}, {\"id\": \"sp\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"s1\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Portfolio Control\", \"col\": 4}}, {\"id\": \"s2\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"HP Daily Collections\", \"col\": 4}}]",
   "roles": [
     {
       "role": "Director"
@@ -39,6 +39,10 @@
     {
       "number_card_name": "Portfolio Overdue",
       "label": "Overdue amount"
+    },
+    {
+      "number_card_name": "Collected Today",
+      "label": "Collected today"
     }
   ],
   "shortcuts": [
@@ -48,6 +52,13 @@
       "type": "Report",
       "doc_view": "",
       "color": "Grey"
+    },
+    {
+      "label": "HP Daily Collections",
+      "link_to": "HP Daily Collections",
+      "type": "Report",
+      "doc_view": "",
+      "color": "Green"
     }
   ],
   "links": [],

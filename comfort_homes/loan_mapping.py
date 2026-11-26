@@ -100,15 +100,31 @@ def apply_temporary_repayment_tenure_to_disbursement(doc, method=None):
 	if periods:
 		doc.tenure = periods
 
+# Loan Application "Agreed Payment Method" -> Mode of Payment.  The mode is a label on the Loan and its
+# disbursement (it posts nothing: disbursements credit 1180 and reconciled receipts use the statement's bank
+# account), but it is a Link, so every target must exist.  hp_settings.check_setup reports a missing one.
 MODE_OF_PAYMENT_MAP = {
 	"Bank - PPT": "Bank PPT",
 	"Bank Deduction - BSP": "Bank PPT",
-	"Bank Deduction - BRED": "Bank PPT",
+	"Bank Deduction - Westpac": "Bank PPT",
 	"Bank Deduction - ANZ": "Bank PPT",
+	"Bank Deduction - BRED": "Bank PPT",
+	"Bank Deduction - HFC": "Bank PPT",
 	"Payroll Deduction": "Payroll Deduction",
 	"Cash / Direct Payment": "Cash",
+	"Office Payment": "Cash",
+	"M-Paisa": "Other",
+	"My Cash": "Other",
 	"Other": "Other",
 }
+FALLBACK_MODE_OF_PAYMENT = "Other"
+
+
+def agreed_mode_of_payment(agreed):
+	"""Never pass an unmapped option through: an unknown name would stop the Loan from saving."""
+	if not agreed:
+		return None
+	return MODE_OF_PAYMENT_MAP.get(agreed, FALLBACK_MODE_OF_PAYMENT)
 
 
 def _copy_purchase_items(target, source):
@@ -163,9 +179,7 @@ def apply_loan_application_values(doc, method=None):
 	doc.custom_hp_contract_rate = flt(application.get("custom_flexi_interest_rate"))
 	doc.rate_of_interest = 0
 	doc.cost_center = application.get("custom_branchlocation") or doc.cost_center or frappe.db.get_value("Company", doc.company, "cost_center")
-	doc.custom_mode_of_payment = MODE_OF_PAYMENT_MAP.get(
-		application.get("custom_flexi_payment_method"), application.get("custom_flexi_payment_method")
-	)
+	doc.custom_mode_of_payment = agreed_mode_of_payment(application.get("custom_flexi_payment_method"))
 	_copy_purchase_items(doc, application)
 
 

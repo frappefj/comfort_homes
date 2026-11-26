@@ -22,13 +22,6 @@ def as_server_script(fn):
 		return fn(doc, *args, **kwargs)
 	return run
 
-# Loan Application "Payment Method" (as agreed with the customer) -> Mode of Payment
-PAYMENT_MODES = {
-	"Bank - PPT": "Bank PPT",
-	"Payroll Deduction": "Payroll Deduction",
-	"Cash / Direct Payment": "Cash",
-	"Other": "Other",
-}
 CANONICAL_RATES = ("12", "19", "22", "25", "27")
 
 
@@ -56,7 +49,8 @@ def copy_hp_items_to_loan(doc, method=None):
 def _agreed_mode(loan):
 	loan_application = frappe.db.get_value("Loan", loan, "loan_application")
 	agreed = frappe.db.get_value("Loan Application", loan_application, "custom_flexi_payment_method") if loan_application else None
-	return PAYMENT_MODES.get(agreed)
+	from comfort_homes.loan_mapping import agreed_mode_of_payment
+	return agreed_mode_of_payment(agreed)
 
 
 @as_server_script

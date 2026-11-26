@@ -191,7 +191,7 @@ def test_financial_jobs_and_core_acceptance_modules_unchanged_from_dev7_referenc
     # Hash constants taken from authenticated dev7 manifest, not recalculated from new source.
     pinned={'hp_interest.py':'dcddb9b99e18f14ead887f1d9aee8fed1bebe659ed3bbc8caa98b536617ea204',
         'hp_penalties.py':'372f1817ea97d384f8cf75ccd602a84754ccab26f5040d20c281f15fbcef9b45',
-        'hp_lifecycle.py':'41649b76bc53fb8261ca72d3292630d7aeff1858c8df06b3077c0adc0faf4c3e',
+        'hp_lifecycle.py':'17ebd9cde0f36eca85838227c7636264ed9f0573283370842afbc71baf2aff80',  # 7.1.3: gross booking lines carry the loan's branch
         'hp_settlement.py':'4c93394dc2105629fd2b1b871206f95f1393772d31812be9ac5590aec4983673'}
     for name,digest in pinned.items():assert hashlib.sha256((ROOT/'hp_lending'/name).read_bytes()).hexdigest()==digest
 

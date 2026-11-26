@@ -4,7 +4,7 @@ function import_statement_dialog(frm, analysis) {
 	const dialog = new frappe.ui.Dialog({
 		title: "Review statement mapping",
 		fields: [
-			{ fieldname: "summary", fieldtype: "HTML", options: `<p>Detected ${frappe.utils.escape_html(analysis.file_name)}. ${analysis.sheets.length > 1 ? `${analysis.sheets.length} sheets will be imported.` : ""}</p>` },
+			{ fieldname: "summary", fieldtype: "HTML", options: `<p>Detected ${frappe.utils.escape_html(analysis.file_name)}. ${analysis.sheets.length > 1 ? `${analysis.sheets.length} sheets will be imported.` : ""}${analysis.format === "M-PAiSA" ? " <b>M-PAiSA statement:</b> payments are matched by reference and mobile number; settlements to 1008 and fees are posted when you create the repayments. The columns below are fixed." : ""}</p>` },
 			{ fieldname: "date", label: "Transaction / value date column", fieldtype: "Select", options: columns, default: mapping.date, reqd: 1 },
 			{ fieldname: "description", label: "Description column", fieldtype: "Select", options: columns, default: mapping.description, reqd: 1 },
 			{ fieldname: "credit", label: "Credit / money received column", fieldtype: "Select", options: columns, default: mapping.credit },
@@ -85,7 +85,10 @@ frappe.ui.form.on("Loan Bank Reconciliation", {
 						callback(r) {
 							if (!r.exc) {
 								const errors = r.message.errors || [];
-								frappe.msgprint({ title: "Loan reconciliation", message: `${r.message.created} receipt(s) posted (instalments, fees or customer credit). ${r.message.skipped} row(s) skipped.` + (errors.length ? `<br><br>${errors.map(e => frappe.utils.escape_html(String(e))).join("<br>")}` : ""), indicator: errors.length ? "orange" : "green" });
+								const m = r.message;
+								const settled = (m.settlements_posted || []).length ? `<br>${m.settlements_posted.length} M-PAiSA settlement(s) posted to the bank.` : "";
+								const unsettled = (m.settlements_skipped || []).length ? `<br><br><b>Settlements to post by hand:</b><br>${m.settlements_skipped.map(e => frappe.utils.escape_html(String(e))).join("<br>")}` : "";
+								frappe.msgprint({ title: "Loan reconciliation", message: `${m.created} receipt(s) posted (instalments, fees or customer credit). ${m.skipped} row(s) skipped.` + settled + (errors.length ? `<br><br>${errors.map(e => frappe.utils.escape_html(String(e))).join("<br>")}` : "") + unsettled, indicator: errors.length || unsettled ? "orange" : "green" });
 								frm.reload_doc();
 							}
 						}

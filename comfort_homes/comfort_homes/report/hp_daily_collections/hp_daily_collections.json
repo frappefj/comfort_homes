@@ -1,0 +1,18 @@
+{
+  "doctype": "Report",
+  "name": "HP Daily Collections",
+  "report_name": "HP Daily Collections",
+  "ref_doctype": "GL Entry",
+  "report_type": "Script Report",
+  "is_standard": "Yes",
+  "module": "Comfort Homes",
+  "disabled": 0,
+  "add_total_row": 1,
+  "roles": [
+    {"role": "Director"},
+    {"role": "Finance Manager"},
+    {"role": "Accounts Manager"},
+    {"role": "Accounts Officer"},
+    {"role": "Loan Manager"}
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "_comment": "7.1.3 collection locations. Each store has its own cash-in-hand account; receipts taken in store are recorded into it, and Daily Collections reports money in by the account it was received into. Numbers are chosen from the free numbers under 1100 Cash In Hand (1111 Suva and 1112 Namaka already exist). Edit here before running hp_collections.setup_collections on a new site.",
+  "cutover_date": "2026-11-21",
+  "cash_parent_number": "1100",
+  "stores": [
+    {"store": "Suva", "number": "1111", "account_name": "Cash in Hand - Suva", "cost_center": null, "existing": true},
+    {"store": "Namaka", "number": "1112", "account_name": "Cash in Hand - Namaka", "cost_center": "Namaka", "existing": true},
+    {"store": "HQ", "number": "1113", "account_name": "Cash in Hand - HQ", "cost_center": "HQ"},
+    {"store": "Grantham", "number": "1114", "account_name": "Cash in Hand - Grantham", "cost_center": "Grantham"},
+    {"store": "Lautoka", "number": "1116", "account_name": "Cash in Hand - Lautoka", "cost_center": "Lautoka"},
+    {"store": "Nadi", "number": "1117", "account_name": "Cash in Hand - Nadi", "cost_center": "Nadi"},
+    {"store": "Nakasi", "number": "1118", "account_name": "Cash in Hand - Nakasi", "cost_center": "Nakasi"},
+    {"store": "Nausori", "number": "1119", "account_name": "Cash in Hand - Nausori", "cost_center": "Nausori"},
+    {"store": "Denarau", "number": "1121", "account_name": "Cash in Hand - Denarau", "cost_center": "Denarau"}
+  ],
+  "mpaisa": {
+    "wallet_number": "1206",
+    "wallet_name": "M-PAiSA Wallet",
+    "wallet_parent_number": "1200",
+    "bank": "M-PAiSA",
+    "bank_account_name": "M-PAiSA Flexi Wallet",
+    "charges_number": "5031",
+    "charges_name": "M-PAiSA Charges",
+    "charges_parent_number": "5000",
+    "settlement_account_number": "1008",
+    "merchants": {
+      "27287": "M-PAiSA App",
+      "27301": "Grantham QR",
+      "27302": "Nausori QR",
+      "27303": "Namaka QR",
+      "27305": "Lautoka QR"
+    }
+  }
+}

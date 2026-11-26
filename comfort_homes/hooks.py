@@ -15,6 +15,7 @@ web_include_js = ["/assets/comfort_homes/js/hp_origination_math.js", "/assets/co
 
 doctype_js = {
 	"Loan": ["public/js/loan_temporary_repayment_tenure.js", "public/js/hp_service_fees.js", "public/js/hp_loan_settlement.js"],
+	"Loan Repayment": "public/js/loan_repayment_store.js",
     "Sales Invoice": "public/js/hp_service_fees.js",
 	"Co-Applicant": ["public/js/co_applicant_profile.js", "public/js/document_evidence.js", "public/js/hp_document_status.js", "public/js/co_applicant_back_link.js"],
 	"Loan Application": [
@@ -86,7 +87,7 @@ fixtures = [
 		# Flexi extends Lending's standard DocTypes through Custom Field records.
 		# Keeping the complete set here makes a fresh installation reproduce the
 		# same Loan Application layout and database columns as the working site.
-		"filters": [["dt", "in", ["Company", "Loan Application", "Loan", "Loan Product", "Journal Entry", "Loan Disbursement", "Sales Invoice", "Purchase Order", "Purchase Invoice", "Customer", "Contact", "Loan Document Template", "Co-Applicant", "Loan Customer Agreement"]]],
+		"filters": [["dt", "in", ["Company", "Loan Application", "Loan", "Loan Product", "Journal Entry", "Loan Disbursement", "Sales Invoice", "Purchase Order", "Purchase Invoice", "Customer", "Contact", "Loan Document Template", "Co-Applicant", "Loan Customer Agreement", "Loan Repayment"]]],
 	},
 	{
 		"dt": "Property Setter",
@@ -183,7 +184,10 @@ doc_events = {
 	},
 	"Loan Repayment": {
 		"before_validate": "comfort_homes.flexi_events.default_repayment_mode",  # 7.1: was a Server Script
-		"validate": "comfort_homes.hp_lending.hp_conversion.guard_repayment_account",
+		"validate": [
+			"comfort_homes.hp_lending.hp_collections.counter_receipt_account",  # 7.1.3: in-store receipt -> store till
+			"comfort_homes.hp_lending.hp_conversion.guard_repayment_account",
+		],
 	},
 	"Loan Disbursement": {
 		"validate": "comfort_homes.hp_lending.hp_lifecycle.enforce_clearing_account",

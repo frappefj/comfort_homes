@@ -51,13 +51,15 @@ def on_disbursement_submit(doc, method=None):
 		frappe.throw(str(e), title=_("HP Disbursement"))
 
 	party = {"party_type": "Customer", "party": loan.applicant}
+	# 7.1.3: every line on the loan's branch, so 1180 and 2010 net to nil per branch as well as in total.
+	branch = {"cost_center": loan.get("cost_center")} if loan.get("cost_center") else {}
 	rows = []
 	if lines["debit"]["deposit"]:
-		rows.append({"account": s.ACC_DEPOSITS, "debit_in_account_currency": float(lines["debit"]["deposit"]), **party})
+		rows.append({"account": s.ACC_DEPOSITS, "debit_in_account_currency": float(lines["debit"]["deposit"]), **party, **branch})
 	clearing = lines["debit"]["clearing"]
 	if clearing:
 		side = "debit_in_account_currency" if clearing > 0 else "credit_in_account_currency"
-		rows.append({"account": s.ACC_CLEARING, side: float(abs(clearing))})
+		rows.append({"account": s.ACC_CLEARING, side: float(abs(clearing)), **branch})
 	for key, account in (
 		("deferred_interest", s.ACC_DEF_INTEREST),
 		("admin_fee", s.ACC_ADMIN_FEE),

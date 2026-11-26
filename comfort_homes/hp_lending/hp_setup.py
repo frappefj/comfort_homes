@@ -37,6 +37,7 @@ def _plan():
 		plan.append(f"Create non-stock Item '{s.HP_ITEM_CODE}'")
 	if not frappe.db.exists("Loan Product", PRODUCT_CODE):
 		plan.append("Create Loan Product " + PRODUCT_CODE)
+	plan += [f"Create Mode of Payment {mode} (label only, no account)" for mode in _label_modes() if not frappe.db.exists("Mode of Payment", mode)]
 	if not frappe.db.exists("Loan Demand Offset Order", "Flexi HP Demand Offset Order"):
 		plan.append("Create Loan Demand Offset Order 'Flexi HP Demand Offset Order'")
 	company = frappe.db.get_value("Company", s.COMPANY, ["enable_loan_accounting", "days_past_due_threshold"], as_dict=True)
@@ -68,6 +69,21 @@ WORKFLOW_ROLES = [
 	"Loan LOS User", "Loan Officer", "Loan Processor", "Finance Manager", "Director",
 	"Disbursement Officer", "Accounts Officer", "Accounts Manager", "Loan Manager", "Loan Reporter", "Auditor",
 ]
+
+
+def _label_modes():
+	"""7.1.3: every Mode of Payment an agreed payment method maps to.  They are labels: no default account,
+	so staff choose the receiving account on any payment they record by hand."""
+	from comfort_homes.loan_mapping import FALLBACK_MODE_OF_PAYMENT, MODE_OF_PAYMENT_MAP
+
+	return sorted(set(MODE_OF_PAYMENT_MAP.values()) | {FALLBACK_MODE_OF_PAYMENT})
+
+
+def _modes():
+	for mode in _label_modes():
+		if not frappe.db.exists("Mode of Payment", mode):
+			frappe.get_doc({"doctype": "Mode of Payment", "mode_of_payment": mode, "enabled": 1,
+				"type": "Cash" if mode == "Cash" else "General"}).insert(ignore_permissions=True)
 
 
 def _roles():
@@ -268,6 +284,7 @@ def setup_masters(dry_run=1):
 	if dry_run:
 		return {"dry_run": 1, "would_do": plan, "field_diffs": diffs}
 	_roles()
+	_modes()
 	_company()
 	_supplier()
 	_item()

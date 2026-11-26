@@ -241,6 +241,13 @@ def analyse_statement(name):
 	doc.check_permission("read")
 	content, filename = _file(doc)
 	tables = _tables(content, filename)
+	from comfort_homes.hp_lending import hp_mpaisa
+
+	if hp_mpaisa.is_statement(tables):
+		# 7.1.3: the M-PAiSA export has fixed columns; the import reads them itself.
+		return {"file_name": filename, "format": "M-PAiSA", "columns": tables[0]["headers"],
+			"mapping": {"date": "Logtime", "description": "BusinessReferenceNo", "credit": "", "amount": "Amount"},
+			"sheets": [table["sheet"] for table in tables]}
 	return {"file_name": filename, "columns": tables[0]["headers"], "mapping": tables[0]["mapping"], "sheets": [table["sheet"] for table in tables]}
 
 
@@ -390,7 +397,12 @@ def create_deposit_payment_entry(loan_application):
 		return {"name": existing, "existing": True}
 
 	company = application.company or hp.COMPANY
-	bank = frappe.db.get_value("Company", company, "default_bank_account")
+	# 7.1.3: a deposit is taken in store, so it defaults to that store's cash account and branch; staff can
+	# change the receiving account before submitting (a transfer into the bank, say).
+	from comfort_homes.hp_lending.hp_collections import store_cash_account
+
+	branch = application.get("custom_branchlocation")
+	bank = store_cash_account(branch) or frappe.db.get_value("Company", company, "default_bank_account")
 	if not bank:
 		frappe.throw("Configure the Company default bank before recording a deposit")
 	entry = frappe.get_doc({
@@ -407,6 +419,7 @@ def create_deposit_payment_entry(loan_application):
 		"reference_no": application.name,
 		"reference_date": today(),
 		"remarks": _("Hire purchase deposit for {0}").format(application.name),
+		"cost_center": branch or None,
 	})
 	entry.insert()
 	application.db_set("custom_hp_deposit_payment_entry", entry.name, update_modified=False)
@@ -432,12 +445,18 @@ def import_statement(doc, mapping):
 		frappe.throw(_("Create a new reconciliation for another import after repayments have been created."))
 	content, filename = _file(doc)
 	tables = _tables(content, filename)
+	statement_hash = hashlib.sha256(content.encode() if isinstance(content, str) else content).hexdigest()
+	from comfort_homes.hp_lending import hp_mpaisa
+	from comfort_homes.hp_lending.hp_collections import cutover_date
+
+	if hp_mpaisa.is_statement(tables):
+		return hp_mpaisa.import_rows(doc, tables, statement_hash)
+	cutover = cutover_date()
 	mapping = mapping or tables[0]["mapping"]
 	if not mapping.get("date") or not mapping.get("description") or not (mapping.get("credit") or mapping.get("amount")):
 		frappe.throw(_("Choose transaction date, description, and credit or amount columns."))
 	doc.transactions = []
 	imported = ready = review = 0
-	statement_hash = hashlib.sha256(content.encode() if isinstance(content, str) else content).hexdigest()
 	for table in tables:
 		for row_index, values in enumerate(table["rows"]):
 			row = {header: values[index] if index < len(values) else "" for index, header in enumerate(table["headers"])}
@@ -445,6 +464,14 @@ def import_statement(doc, mapping):
 			description = str(row.get(mapping["description"]) or "").strip()
 			amount = _amount(row.get(mapping.get("credit"))) if mapping.get("credit") else _amount(row.get(mapping.get("amount")))
 			if not transaction_date or not description or amount <= 0:
+				continue
+			if transaction_date < cutover:
+				# 7.1.3: money received before cut-over is in the MYOB balances already.
+				doc.append("transactions", {"statement_transaction_key": _statement_key(doc.bank_account, statement_hash, table["sheet"], row_index),
+					"transaction_date": transaction_date, "description": description, "amount": amount, "selected": 0,
+					"status": "Before cut-over (MYOB)"})
+				imported += 1
+				review += 1
 				continue
 			matching_text = normalise_narration(description)
 			card_id = extract_card_id(matching_text)
@@ -489,6 +516,9 @@ def create_repayments(doc, row_names=None):
 	doc.reload()
 	frappe.db.sql("SELECT name FROM `tabBank Account` WHERE name = %s FOR UPDATE", (doc.bank_account,))
 	account = _payment_account(doc.bank_account, doc.company or DEFAULT_COMPANY)
+	from comfort_homes.hp_lending import hp_collections, hp_mpaisa
+
+	cutover = hp_collections.cutover_date()
 	created = skipped = 0
 	errors = []
 	explicit_rows = set(row_names or [])
@@ -496,6 +526,10 @@ def create_repayments(doc, row_names=None):
 		# Ticked grid rows take precedence. Without ticks, retain bulk creation
 		# for every automatically-ready row.
 		if row.loan_repayment or row.get("credit_entry") or row.get("fee_payment") or (explicit_rows and row.name not in explicit_rows) or (not explicit_rows and not row.selected):
+			continue
+		if row.transaction_date and getdate(row.transaction_date) < cutover:
+			row.update({"selected": 0, "status": "Before cut-over (MYOB)"})
+			skipped += 1
 			continue
 		loan = row.loan or row.suggested_loan
 		if not loan:
@@ -536,14 +570,25 @@ def create_repayments(doc, row_names=None):
 				cost_center=_cost_center_for_loan(loan))
 			row.update({"loan": loan, "loan_repayment": posted["loan_repayment"], "fee_payment": posted["fee_payment"],
 				"credit_entry": posted["credit_entry"], "allocation": posted["allocation"], "status": posted["status"]})
+			hp_mpaisa.remember_mobile(row.customer, row.description)
 			created += 1
 		except Exception as error:
 			frappe.db.rollback(save_point="hp_bank_row")
 			row.status = "Error"; errors.append(f"{row.customer_card_id or row.name}: {str(error)[:120]}")
 	posted = sum(bool(row.loan_repayment or row.get("credit_entry") or row.get("fee_payment")) for row in doc.transactions)
-	doc.update({"created_repayments": posted, "status": "Reconciled" if posted and posted == len(doc.transactions) else "Partially Reconciled"})
+	open_rows = [row for row in doc.transactions if row.status != "Before cut-over (MYOB)"]
+	doc.update({"created_repayments": posted, "status": "Reconciled" if posted and posted == len(open_rows) else "Partially Reconciled"})
 	doc.save()
-	return {"created": created, "skipped": skipped, "errors": errors[:10]}
+	result = {"created": created, "skipped": skipped, "errors": errors[:10]}
+	if account == hp_collections.wallet_account():
+		# 7.1.3: M-PAiSA settlements (and their fees) clear the wallet into 1008.
+		frappe.db.savepoint("hp_mpaisa_settlements")
+		try:
+			result.update(hp_mpaisa.post_settlements(doc))
+		except Exception as error:
+			frappe.db.rollback(save_point="hp_mpaisa_settlements")
+			result["errors"].append("M-PAiSA settlements not posted: " + str(error)[:160])
+	return result
 
 
 def _statement_key(bank_account, content_hash, sheet, row_index):

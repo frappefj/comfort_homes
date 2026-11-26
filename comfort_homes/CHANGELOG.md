@@ -1,5 +1,26 @@
 # Comfort Homes — Changelog
 
+## 0.0.7.1.3 — Comfort Homes 7.1.3 (collections by location, M-PAiSA, form fixes)
+
+**Needs install + migrate** (fixtures: custom fields, client script, web form; new report, number card, workspace). Then, as System Manager:
+1. `hp_lending.hp_collections.setup_collections` with `dry_run=1`, then `dry_run=0`: creates the store cash accounts 1113 HQ, 1114 Grantham, 1116 Lautoka, 1117 Nadi, 1118 Nakasi, 1119 Nausori, 1121 Denarau (1111 Suva and 1112 Namaka are kept), 1206 M-PAiSA Wallet, 5031 M-PAiSA Charges, Bank "M-PAiSA" and the company Bank Account "M-PAiSA Flexi Wallet - M-PAiSA". Numbers and stores are in `setup_data/collection_locations.json`.
+2. `hp_settings.check_setup` must stay ok.
+
+No GL renumbering. Pinned file changed on purpose: `hp_lifecycle.py` (gross booking lines carry the loan's branch); pins updated.
+
+- **Daily Collections.** New report *HP Daily Collections* and a *Collected today* card on the Portfolio Control workspace. Money in per day and receiving location (store till, bank, M-PAiSA), split into Deposits, Repayments, Fees, Held as credit, Unidentified and Other receipts, with a per-receipt view. Read from the ledger (debits to Cash/Bank accounts), so it ties to the cash and bank books; transfers between our own cash/bank accounts (M-PAiSA settlements, bankings), opening balances and customer credit applied to instalments are not counted. Directors, Finance and Accounts.
+- **Store tills.** Every store has its own cash account (HQ new; Suva kept). A Loan Repayment has a new *Received at store* field (defaults to the user's default Cost Center); a counter receipt is booked to that store's cash account. A deposit Payment Entry now defaults to the application branch's cash account and carries the branch as cost centre (staff can still change the receiving account).
+- **M-PAiSA reconciliation.** The Loan Bank Reconciliation screen reads the M-PAiSA merchant export as it is (all sheets: app and store QR codes). Each payment is matched by the customer's reference (card number, application number, name), then by the paying mobile number, including numbers remembered on the customer (*M-PAiSA payer numbers*) from earlier confirmed receipts. Choose the M-PAiSA wallet bank account on the reconciliation. Creating the repayments also posts each settlement whose payments are in the file, after cut-over, matched oldest first (M-PAiSA settles at a daily cut-off): Dr 1008 (settled) + Dr 5031 (fees $0.40 a payment) / Cr 1206 wallet. Anything else is listed for Accounts to post by hand. The wallet balance is M-PAiSA money not yet booked to a customer. Tested on the 1-24 Nov export: 34 of 38 settlements matched (the other 4 settle October payments).
+- **Cut-over guard.** Statement rows (bank or M-PAiSA) dated before cut-over (21 Nov 2026) are shown as "Before cut-over (MYOB)" and never posted.
+- **Gross booking by branch.** The 2010 deposit and 1180 clearing lines of the disbursement reclass now carry the loan's cost centre (were HQ), so they net to nil per branch.
+- **Payment modes are labels.** `setup_masters` creates the label-only modes the mapping needs (Bank PPT, Payroll Deduction, Other; Cash) with no default account.
+- Reconciliation screen: the live client script now matches `public/js/loan_bank_reconciliation.js` (it was an older copy).
+
+- Online application form: the employer contact number was rejected on submit ("Phone Number +679 3310290-+679 3310290 ... is not valid"). The form tidied Fiji numbers to `+679 NNNNNNN`, which the Phone control read as a country code. The tidy-up now writes Frappe's own `+679-NNNNNNN` format (as `origination._phone` does), and Employer Contact Number is a plain Data field like the other numbers. Fixtures change (web_form.json). Devcom was hot-fixed on 26-11-2026 by changing that form field to Data.
+- Online application form: amounts typed into the income, living-expense, obligation and purchase tables deleted themselves (a pause after "2" of "25.00" turned it into 2.00 and dropped the rest). The live calculations redraw those grids ~450 ms after each keystroke, which rebuilt the cell being typed in. A typing guard at the top of the form script now holds a grid's redraw until the applicant leaves the cell; totals still calculate as before. Reproduced and the guard verified on devcom (in-page test only).
+- Payment method on new loans: the agreed payment method is copied to the Loan and its disbursement as a Mode of Payment (a label; it posts nothing). Five application options (Bank Deduction - Westpac/HFC, M-Paisa, My Cash, Office Payment) had no mapping and were passed through as names that do not exist, and the mapped targets Bank PPT, Payroll Deduction and Other were missing on devcom, so creating the Loan failed. One map now covers every option (`loan_mapping.agreed_mode_of_payment`, also used by the disbursement/repayment defaults), unknown values fall back to "Other", and `check_setup` reports any missing target mode. Devcom: the three modes were created on 26-11-2026 with no default account.
+- Tests: 503 (12 new).
+
 ## 0.0.7.1.2 — Comfort Homes 7.1.2 (rebuild keeps the receivable in step)
 
 **Needs install only** (no patch, no fixtures). Then run `hp_rebuild.repair_receivable` once for the loans rebuilt on 7.1.1 (00891, 00692).

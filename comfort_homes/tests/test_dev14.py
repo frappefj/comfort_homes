@@ -87,7 +87,7 @@ def test_hooks_wire_conversion_without_touching_pinned_paths():
 	hooks = _hooks()
 	events = hooks["doc_events"]
 	assert events["Loan"]["on_submit"] == "comfort_homes.hp_lending.hp_conversion.on_loan_submit"
-	assert events["Loan Repayment"]["validate"] == "comfort_homes.hp_lending.hp_conversion.guard_repayment_account"
+	assert "comfort_homes.hp_lending.hp_conversion.guard_repayment_account" in events["Loan Repayment"]["validate"]
 	assert events["Loan Disbursement"]["on_submit"] == "comfort_homes.hp_lending.hp_lifecycle.on_disbursement_submit"
 	schedule = hooks["scheduler_events"]
 	assert "comfort_homes.hp_lending.hp_penalties.assess_penalties" in schedule["daily_long"]

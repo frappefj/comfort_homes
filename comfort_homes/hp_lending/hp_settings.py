@@ -144,6 +144,10 @@ def check_setup():
 		from comfort_homes.hp_lending.hp_setup import field_diffs
 		for change in field_diffs():
 			problems.append(change["doctype"] + " " + change["name"] + ": " + change["field"] + " differs from the approved setup")
+	from comfort_homes.loan_mapping import FALLBACK_MODE_OF_PAYMENT, MODE_OF_PAYMENT_MAP
+	for mode in sorted(set(MODE_OF_PAYMENT_MAP.values()) | {FALLBACK_MODE_OF_PAYMENT}):
+		if not frappe.db.exists("Mode of Payment", mode):
+			problems.append("Missing Mode of Payment: " + mode + " (agreed payment methods map to it)")
 	for product in frappe.get_all("Loan Product", filters={"company": COMPANY}, fields=["name", "penalty_interest_rate"]):
 		if product.penalty_interest_rate:
 			problems.append("Loan Product " + product.name + ": native penalty rate must be 0")

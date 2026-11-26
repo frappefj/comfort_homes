@@ -12,7 +12,7 @@ def prepared(env,monkeypatch):
     f,load=env
     module=load('api.py')
     row=Row(name='ROW',selected=1,loan='LOAN',suggested_loan='LOAN',loan_repayment=None,
-            customer='CUSTOMER',transaction_date='2026-11-17',amount=73.30,
+            customer='CUSTOMER',transaction_date='2026-11-24',amount=73.30,
             statement_transaction_key='HP-BANK-TEST',customer_card_id='TEST')
     doc=Row(name='RECO',company=COMPANY,docstatus=0,bank_account='BANK',transactions=[row],
             check_permission=Mock(),reload=Mock(),save=Mock())
@@ -44,17 +44,17 @@ def test_row_submission_uses_native_permissions_and_exact_reference(env,monkeypa
 
 def test_retry_reuses_only_matching_submitted_payment(env,monkeypatch):
     f,module,doc,row,payment=prepared(env,monkeypatch)
-    f.db.get_value.return_value=Row(name='EXISTING',against_loan='LOAN',docstatus=1,amount_paid=73.30,value_date='2026-11-17')
+    f.db.get_value.return_value=Row(name='EXISTING',against_loan='LOAN',docstatus=1,amount_paid=73.30,value_date='2026-11-24')
     result=module.create_repayments(doc)
     assert result['created']==0 and row.loan_repayment=='EXISTING'
     payment.insert.assert_not_called()
     doc.save.assert_called_once_with()
 
 
-@pytest.mark.parametrize('change',[{'against_loan':'OTHER'},{'docstatus':0},{'amount_paid':74},{'value_date':'2026-11-16'}])
+@pytest.mark.parametrize('change',[{'against_loan':'OTHER'},{'docstatus':0},{'amount_paid':74},{'value_date':'2026-11-23'}])
 def test_repeat_reference_mismatch_is_not_reallocated(env,monkeypatch,change):
     f,module,doc,row,payment=prepared(env,monkeypatch)
-    previous=Row(name='EXISTING',against_loan='LOAN',docstatus=1,amount_paid=73.30,value_date='2026-11-17')
+    previous=Row(name='EXISTING',against_loan='LOAN',docstatus=1,amount_paid=73.30,value_date='2026-11-24')
     previous.update(change);f.db.get_value.return_value=previous
     result=module.create_repayments(doc)
     assert result['created']==0 and row.status=='Error' and result['errors']
