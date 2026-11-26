@@ -1,5 +1,14 @@
 # Comfort Homes — Changelog
 
+## 0.0.7.1.2 — Comfort Homes 7.1.2 (rebuild keeps the receivable in step)
+
+**Needs install only** (no patch, no fixtures). Then run `hp_rebuild.repair_receivable` once for the loans rebuilt on 7.1.1 (00891, 00692).
+
+- **Receivable corrected on rebuild.** When a rebuild changes the MYOB paid-ahead amount, Lending's principal changes (the paid-ahead instalments stay on the receivable; the money sits in customer credit 2017), but the loan's opening GL on 1101 does not. 7.1/7.1.1 posted only the credit (Dr 1910 / Cr 2017), so 1101 fell short by the new paid-ahead amount (devcom: 00891 by 16.00, 00692 by 145.85; caught by HP Conversion Check). The rebuild now posts Dr 1101 / Cr 1910 for the difference (tagged `HP-REBUILD-REC-<loan>-<n>`) and refuses to commit unless 1101 for the loan equals Lending's principal. Net effect of a paid-ahead change is Dr 1101 / Cr 2017, as on first load.
+- **`repair_receivable(loans, dry_run=1)`** (System Manager) posts the same correction for loans already rebuilt by the helper; preview by default.
+- **HP Conversion Check** counts the rebuild corrections in "1101 at Cut-over".
+- Tests: 491 (one new). Pinned files unchanged.
+
 ## 0.0.7.1.1 — Comfort Homes 7.1.1 (fix to the 7.1 rebuild helper)
 
 **Needs install only** (no patch, no fixtures). One change, in `hp_lending/hp_rebuild.py`:

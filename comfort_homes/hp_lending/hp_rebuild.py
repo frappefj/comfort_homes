@@ -3,11 +3,12 @@
 Why: a converted loan loaded with the wrong frequency, number of instalments or first instalment date cannot
 be edited once submitted (those fields are not "allow on submit"), and cancel-and-amend would rename it.
 
-How an imported loan is held (Lending 16.8.2): the schedule belongs to an imported Loan Disbursement; the Loan's
-own opening GL (Dr 1101 / Cr 1910) is one total, the principal still owed, which a new instalment pattern does
-not change. Imported disbursements, imported demands and imported repayments post no GL, and principal demands
-never do. So the rebuild touches the ledger only where the new schedule changes the MYOB paid-ahead amount
-(customer credit, Dr 1910 / Cr 2017).
+How an imported loan is held (Lending 16.8): the schedule belongs to an imported Loan Disbursement; the Loan's
+own opening GL (Dr 1101 / Cr 1910) is one total, the principal still owed. Imported disbursements, imported
+demands and imported repayments post no GL, and principal demands never do. A new schedule changes the ledger
+only where it changes the MYOB paid-ahead amount: the customer credit (Dr 1910 / Cr 2017) and, because
+paid-ahead instalments stay on the receivable, the principal owed, so 1101 is brought to Lending's principal
+against 1910 (7.1.2; 7.1 and 7.1.1 missed this, see repair_receivable).
 
 Steps, one transaction per loan (a preview runs every step and rolls back):
   1. refuse a loan with activity since cut-over (receipts, credit used, charges, adjustments other than the
@@ -27,7 +28,7 @@ import json
 
 import frappe
 from frappe import _
-from frappe.utils import add_days, cint, getdate, now_datetime
+from frappe.utils import cint, getdate, now_datetime
 
 from comfort_homes.hp_lending import hp_conversion as conv
 from comfort_homes.hp_lending import hp_math as m
@@ -140,6 +141,92 @@ def _snapshot(doc):
 
 
 # ---------------------------------------------------------------------------
+# Receivable in the ledger (7.1.2)
+# ---------------------------------------------------------------------------
+
+REC_TAG = "HP-REBUILD-REC-{loan}"
+
+
+def pending_principal(loan):
+	"""Lending's principal still owed on the loan (what 1101 must carry for it)."""
+	d = frappe.db.get_value("Loan", loan, ["loan_amount", "debit_adjustment_amount", "credit_adjustment_amount",
+		"total_principal_paid"], as_dict=True)
+	return m.money(m.d(d.loan_amount) + m.d(d.debit_adjustment_amount) - m.d(d.credit_adjustment_amount)
+		- m.d(d.total_principal_paid))
+
+
+def rebuild_corrections(loan):
+	"""1101 posted by rebuild corrections tagged to the loan."""
+	return frappe.db.sql("""SELECT COALESCE(SUM(jea.debit - jea.credit), 0) FROM `tabJournal Entry Account` jea
+		JOIN `tabJournal Entry` je ON je.name = jea.parent
+		WHERE je.docstatus = 1 AND je.custom_hp_loan = %s AND je.user_remark LIKE %s AND jea.account = %s""",
+		(loan, "%[" + REC_TAG.format(loan=loan) + "-%", s.account("ACC_RECEIVABLE")))[0][0] or 0
+
+
+def receivable_in_ledger(loan):
+	"""1101 for the loan: Lending's own entries (the loan's opening entry and its balance adjustments, which
+	carry the loan as voucher or against-voucher) plus the rebuild corrections tagged to it."""
+	account = s.account("ACC_RECEIVABLE")
+	own = frappe.db.sql("""SELECT COALESCE(SUM(debit - credit), 0) FROM `tabGL Entry`
+		WHERE is_cancelled = 0 AND account = %s AND (voucher_no = %s OR against_voucher = %s)
+		AND voucher_type != 'Journal Entry'""", (account, loan, loan))[0][0]
+	return m.money(m.d(own) + m.d(rebuild_corrections(loan)))
+
+
+def _correct_receivable(doc):
+	"""A new paid-ahead amount changes the principal Lending carries (paid-ahead instalments stay on the
+	receivable, the money sits in 2017) but not the loan's opening GL. Bring 1101 to Lending's figure
+	against 1910, as the opening entry would have on first load. Returns the journal, or None."""
+	diff = pending_principal(doc.name) - receivable_in_ledger(doc.name)
+	if diff == 0:
+		return None
+	n = 1 + cint(frappe.db.count("Journal Entry", {"custom_hp_loan": doc.name, "docstatus": 1,
+		"user_remark": ["like", "%[" + REC_TAG.format(loan=doc.name) + "-%"]}))
+	side, other = ("debit_in_account_currency", "credit_in_account_currency") if diff > 0 else \
+		("credit_in_account_currency", "debit_in_account_currency")
+	return conv._journal(doc.name, doc.migration_date, f"{REC_TAG.format(loan=doc.name)}-{n}",
+		f"Receivable for {doc.name} brought to Lending's principal after the schedule rebuild (paid ahead changed)", [
+		{"account": s.account("ACC_RECEIVABLE"), "party_type": "Customer", "party": doc.applicant, side: float(abs(diff))},
+		{"account": conv._account(conv.OPENING_ACCOUNT_NUMBER), "cost_center": doc.cost_center, other: float(abs(diff))},
+	])
+
+
+@frappe.whitelist(methods=["POST"])
+def repair_receivable(loans, dry_run=1):
+	"""System Manager. For loans rebuilt by 7.1 / 7.1.1: post the 1101 correction the rebuild now posts
+	itself. Only converted loans rebuilt by hp_rebuild with no activity since cut-over. Preview by default."""
+	frappe.only_for("System Manager")
+	loans = json.loads(loans) if isinstance(loans, str) else loans
+	live, out = not cint(dry_run), []
+	frappe.db.commit()
+	for name in loans or []:
+		try:
+			doc = frappe.get_doc("Loan", name)
+			problems = [p for p in blockers(doc) if not p.startswith("you need cancel rights")]
+			if not frappe.db.exists("Comment", {"reference_doctype": "Loan", "reference_name": name,
+					"content": ["like", "%7.1 hp_rebuild%"]}):
+				problems.append("not rebuilt by hp_rebuild")
+			if problems:
+				out.append(dict(loan=name, ok=False, done=False, problems=problems))
+				frappe.db.rollback()
+				continue
+			before = float(receivable_in_ledger(name))
+			journal = _correct_receivable(doc)
+			after, lending = float(receivable_in_ledger(name)), float(pending_principal(name))
+			if after != lending:
+				frappe.throw(_("{0}: 1101 {1} still differs from Lending {2}").format(name, after, lending))
+			if live:
+				frappe.db.commit()
+			else:
+				frappe.db.rollback()
+			out.append(dict(loan=name, ok=True, done=live, journal=journal, before=before, after=after))
+		except Exception as e:
+			frappe.db.rollback()
+			out.append(dict(loan=name, ok=False, done=False, problems=[str(e)]))
+	return out
+
+
+# ---------------------------------------------------------------------------
 # One loan
 # ---------------------------------------------------------------------------
 
@@ -219,12 +306,17 @@ def _rebuild(name, frequency, periods, start_date, source):
 		frappe.flags.hp_conversion = previous
 	if application:
 		frappe.db.set_value("Loan", name, "loan_application", application, update_modified=False)
+	receivable_journal = _correct_receivable(frappe.get_doc("Loan", name))
 	check = conv.verify_loan(name)
 	if not check["ok"]:
 		frappe.throw(_("Rebuilt {0} does not agree with MYOB: {1}").format(name, "; ".join(check["problems"])))
+	ledger, lending = receivable_in_ledger(name), pending_principal(name)
+	if ledger != lending:  # 7.1.2: the ledger must carry what Lending carries
+		frappe.throw(_("Rebuilt {0}: 1101 in the ledger {1} differs from Lending's principal {2}").format(
+			name, ledger, lending))
 	after = _snapshot(frappe.get_doc("Loan", name))
 	return dict(loan=name, ok=True, done=False, before=before, after=after, cancelled=cancelled,
-		disbursement=disbursement, source=source, check=check)
+		disbursement=disbursement, receivable_journal=receivable_journal, source=source, check=check)
 
 
 def _comment(result):

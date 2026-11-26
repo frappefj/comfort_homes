@@ -29,7 +29,8 @@ def _opening_balance(account, loan):
 		(account, loan))[0][0], 2)
 	advance = flt(frappe.db.get_value("Loan Repayment",
 		{"against_loan": loan, "docstatus": 1, "reference_number": f"HP-OPEN-ADV-{loan}"}, "amount_paid"), 2)
-	return round(opening - advance - _opening_credit(loan), 2)
+	from comfort_homes.hp_lending.hp_rebuild import rebuild_corrections  # 7.1.2: receivable corrections
+	return round(opening + flt(rebuild_corrections(loan)) - advance - _opening_credit(loan), 2)
 
 
 def _opening_unearned(loan):

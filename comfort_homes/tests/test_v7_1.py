@@ -1,6 +1,5 @@
 """7.1 Lean and Clean: server scripts as app code, merged Portfolio Control, Conversion Check credit, rebuild."""
 import ast
-import json
 from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -136,7 +135,7 @@ def test_portfolio_control_carries_the_overview_exceptions(c):  # noqa: F811
 
 def test_conversion_check_deducts_opening_customer_credit():
 	src = (ROOT / "comfort_homes" / "report" / "hp_conversion_check" / "hp_conversion_check.py").read_text()
-	assert "return round(opening - advance - _opening_credit(loan), 2)" in src
+	assert "return round(opening + flt(rebuild_corrections(loan)) - advance - _opening_credit(loan), 2)" in src
 	body = src.split("def _opening_credit(")[1].split("\ndef ")[0]
 	assert "HP-OPEN-CREDIT-{loan}" in body and "jea.account = %s" in body
 
@@ -192,3 +191,21 @@ def test_rebuild_unlinks_the_application_like_first_load():
 	assert unlink < body.index('_cancel("Loan Demand"') < body.index("doc.import_loan_disbursement(")
 	relink = body.index('frappe.db.set_value("Loan", name, "loan_application", application')
 	assert body.index("conv._date_opening_arrears(doc)") < relink < body.index("check = conv.verify_loan(name)")
+
+
+def test_rebuild_brings_the_receivable_to_lendings_principal():
+	"""7.1.2: a new paid-ahead amount changes Lending's principal but not the loan's opening GL; the rebuild
+	must post the 1101 correction and refuse to commit unless ledger and Lending agree."""
+	src = (ROOT / "hp_lending" / "hp_rebuild.py").read_text()
+	body = src.split("def _rebuild(")[1].split("\ndef ")[0]
+	assert body.index("conv._date_opening_arrears(doc)") < body.index("_correct_receivable(") < body.index("check = conv.verify_loan(name)")
+	assert "if ledger != lending:" in body and "frappe.throw" in body.split("if ledger != lending:")[1].split("\n")[1]
+	corr = src.split("def _correct_receivable(")[1].split("\n@frappe.whitelist")[0]
+	assert 'conv._account(conv.OPENING_ACCOUNT_NUMBER)' in corr and 's.account("ACC_RECEIVABLE")' in corr and '"party_type": "Customer"' in corr
+	ledger = src.split("def receivable_in_ledger(")[1].split("\ndef ")[0]
+	assert "voucher_no = %s OR against_voucher = %s" in ledger and "voucher_type != 'Journal Entry'" in ledger and "rebuild_corrections(loan)" in ledger
+	repair = src.split("def repair_receivable(")[1].split("\n# ---")[0]
+	assert 'frappe.only_for("System Manager")' in repair and "dry_run=1" in src.split("def repair_receivable(")[1].split(")")[0]
+	assert "7.1 hp_rebuild" in repair  # only loans the helper rebuilt
+	report = (ROOT / "comfort_homes" / "report" / "hp_conversion_check" / "hp_conversion_check.py").read_text()
+	assert "opening + flt(rebuild_corrections(loan)) - advance - _opening_credit(loan)" in report
