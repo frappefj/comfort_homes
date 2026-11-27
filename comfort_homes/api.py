@@ -20,6 +20,7 @@ HP_ACCOUNT_PATTERN = re.compile(r"\b\d{4}-\d{3,6}\b")
 CARD_ID_PATTERN = re.compile(r"\b(?:" + "|".join(CARD_PREFIXES) + r")[A-Z0-9]{4,}\b")
 # dev20: narrations typed by customers - "LTK 2026078", "ACC- LOAP 2026-00310", "ACCLOAP202600264".
 SPACED_CARD_ID_PATTERN = re.compile(r"\b(" + "|".join(CARD_PREFIXES) + r")[ \-]+(\d{6,})\b", re.IGNORECASE)
+LOOSE_HP_ACCOUNT_PATTERN = re.compile(r"(?<![\w\-])(20\d\d)(?: +|(?=0\d{4}\b))(\d{5})\b")
 LOOSE_APPLICATION_PATTERN = re.compile(r"\bACC[\s\-]*LOA[PD][\s\-]*(\d{4})[\s\-]*(\d{3,6})\b", re.IGNORECASE)
 
 
@@ -29,6 +30,8 @@ def normalise_narration(description):
 	the statement row keeps the bank's original description."""
 	text = str(description or "")
 	text = LOOSE_APPLICATION_PATTERN.sub(lambda m: f"ACC-LOAP-{m.group(1)}-{m.group(2)}", text)
+	# 7.1.5: HP account numbers typed as "2026 00322" or "202600221" (= 2026-00322 / 2026-00221).
+	text = LOOSE_HP_ACCOUNT_PATTERN.sub(lambda m: f"{m.group(1)}-{m.group(2)}", text)
 	return SPACED_CARD_ID_PATTERN.sub(lambda m: m.group(1).upper() + m.group(2), text)
 
 
@@ -107,6 +110,9 @@ CUSTOMER_ID_FIELDS = ("custom_card_id", "custom_ch_account_reference_no", "custo
 ALIASES = {
 	"date": ("value date", "effective date", "transaction date", "date", "posted date"),
 	"description": ("transaction description", "description", "operation", "narration", "details"),
+	# 7.1.5: Westpac puts the type ("WIRE TRANSFER CREDIT") in Transaction Description and the customer's
+	# reference in Transaction Code Description; both are read, joined with " | ".
+	"detail": ("transaction code description", "reference details", "payment reference"),
 	"credit": ("credit amount", "amount (credit)", "amount credit", "credit (fjd)", "credit", "deposit"),
 	"amount": ("amount", "transaction amount"),
 }
@@ -137,6 +143,12 @@ def _date(value):
 		except ValueError:
 			pass
 	return None
+
+
+def statement_description(row, mapping):
+	"""The narration of one statement row: the description column, plus the detail column where the bank has one."""
+	parts = [str(row.get(mapping.get(key)) or "").strip() for key in ("description", "detail") if mapping.get(key)]
+	return " | ".join(part for part in parts if part)
 
 
 def _mapping(headers):
@@ -247,23 +259,20 @@ def _loan_matches(customer):
 	)
 
 
-def _customer_and_loan(description, card_id):
-	# Prefer an explicit application reference: it is the most reliable bank
-	# narration identifier and avoids any customer-name ambiguity.
-	application_reference = next(iter(LOAN_APPLICATION_PATTERN.findall(description or "")), "")
-	if application_reference and frappe.db.has_column("Loan", "loan_application"):
-		loans = frappe.get_all(
-			"Loan",
-			filters={"loan_application": application_reference, "status": "Disbursed"},
-			fields=["name", "applicant"],
-			limit_page_length=2,
-		)
-		if len(loans) == 1:
-			return loans[0].applicant, loans[0].name, 1
+def _customer_and_loan(description, card_id, detail=False):
+	"""(customer, loan, number of open loans) for a narration; with ``detail`` a 4th value says how it matched.
 
-	# A statement can contain a customer Card ID, the HP account number (held on
-	# converted MYOB customers in custom_ch_account_reference_no) or, as in BSP
-	# statements, the customer's TIN. All are optional site customizations.
+	7.1.5 order. Customers quote their original (UAT) application number, "ACC-LOAP-2026-00314", and devcom
+	holds that number as the HP account 2026-00314 on the customer, while devcom's own application
+	ACC-LOAP-2026-00314 belongs to a different, converted MYOB customer. So exact customer identifiers
+	(HP account, Card ID, TIN) are tried first; a devcom application reference only when none matches, and
+	a converted (MYOB) application found that way is returned as "check" so it is never posted unseen."""
+	def out(customer, loan, count, how):
+		return (customer, loan, count, how) if detail else (customer, loan, count)
+
+	# A statement can contain a customer Card ID, the HP account number (held on converted MYOB customers in
+	# custom_ch_account_reference_no, also inside a quoted application number) or, as in BSP statements, the
+	# customer's TIN. All are optional site customizations.
 	identifiers = list(dict.fromkeys([card_id] + CARD_ID_PATTERN.findall((description or "").upper())
 		+ HP_ACCOUNT_PATTERN.findall(description or "")
 		+ re.findall(r"\b\d{5,}\b", description or "")))
@@ -283,15 +292,29 @@ def _customer_and_loan(description, card_id):
 	if len(matched_customers) == 1:
 		customer = next(iter(matched_customers))
 		loans = _loan_matches(customer)
-		return customer, loans[0].name if len(loans) == 1 else "", len(loans)
+		return out(customer, loans[0].name if len(loans) == 1 else "", len(loans), "identifier")
 	if len(matched_customers) > 1:
-		return "", "", 0
+		return out("", "", 0, "")
+
+	# A devcom application reference: certain for new contracts; a converted MYOB application is only a guess.
+	application_reference = next(iter(LOAN_APPLICATION_PATTERN.findall(description or "")), "")
+	if application_reference and frappe.db.has_column("Loan", "loan_application"):
+		loans = frappe.get_all(
+			"Loan",
+			filters={"loan_application": application_reference, "status": "Disbursed"},
+			fields=["name", "applicant"],
+			limit_page_length=2,
+		)
+		if len(loans) == 1:
+			converted = frappe.db.get_value("Loan Application", application_reference, "custom_hp_converted") \
+				if frappe.db.has_column("Loan Application", "custom_hp_converted") else 0
+			return out(loans[0].applicant, loans[0].name, 1, "check" if converted else "application")
 
 	customer = _customer_name_from_description(description)
 	if not customer:
-		return "", "", 0
+		return out("", "", 0, "")
 	loans = _loan_matches(customer)
-	return customer, loans[0].name if len(loans) == 1 else "", len(loans)
+	return out(customer, loans[0].name if len(loans) == 1 else "", len(loans), "name")
 
 
 @frappe.whitelist()
@@ -485,12 +508,28 @@ def create_deposit_payment_entry(loan_application):
 	return {"name": entry.name, "existing": False}
 
 
+CHECK_CUSTOMER = "Check customer (application number)"
+PRE_CUTOVER_ROLES = ("Finance Manager", "System Manager")
+
+
+def include_pre_cutover(doc):
+	"""7.1.5: the reconciliation takes receipts dated before cut-over that MYOB never recorded."""
+	return bool(doc.get("include_pre_cutover"))
+
+
+def _require_pre_cutover_role(doc):
+	if include_pre_cutover(doc) and not set(PRE_CUTOVER_ROLES) & set(frappe.get_roles()):
+		frappe.throw(_("Only a Finance Manager can import or post receipts dated before cut-over."),
+			title=_("Receipts before cut-over"))
+
+
 @frappe.whitelist(methods=["POST"])
 def loan_reconciliation(name, action, mapping=None, row_names=None):
 	doc = frappe.get_doc("Loan Bank Reconciliation", name)
 	doc.check_permission("write")
 	if doc.docstatus:
 		frappe.throw(_("Only a draft reconciliation can be changed."))
+	_require_pre_cutover_role(doc)
 	if action == "import_statement":
 		return import_statement(doc, frappe.parse_json(mapping) if mapping else None)
 	if action == "create_repayments":
@@ -511,7 +550,8 @@ def import_statement(doc, mapping):
 	if hp_mpaisa.is_statement(tables):
 		return hp_mpaisa.import_rows(doc, tables, statement_hash)
 	cutover = cutover_date()
-	mapping = mapping or tables[0]["mapping"]
+	mapping = dict(mapping or tables[0]["mapping"])
+	mapping.setdefault("detail", tables[0]["mapping"].get("detail", ""))  # 7.1.5: the screen does not ask for it
 	if not mapping.get("date") or not mapping.get("description") or not (mapping.get("credit") or mapping.get("amount")):
 		frappe.throw(_("Choose transaction date, description, and credit or amount columns."))
 	doc.transactions = []
@@ -521,11 +561,11 @@ def import_statement(doc, mapping):
 		for row_index, values in enumerate(table["rows"]):
 			row = {header: values[index] if index < len(values) else "" for index, header in enumerate(table["headers"])}
 			transaction_date = _date(row.get(mapping["date"]))
-			description = str(row.get(mapping["description"]) or "").strip()
+			description = statement_description(row, mapping)
 			amount = _amount(row.get(mapping.get("credit"))) if mapping.get("credit") else _amount(row.get(mapping.get("amount")))
 			if not transaction_date or not description or amount <= 0:
 				continue
-			if transaction_date < cutover:
+			if transaction_date < cutover and not include_pre_cutover(doc):
 				# 7.1.3: money received before cut-over is in the MYOB balances already.
 				doc.append("transactions", {"statement_transaction_key": _statement_key(doc.bank_account, statement_hash, table["sheet"], row_index),
 					"transaction_date": transaction_date, "description": description, "amount": amount, "selected": 0,
@@ -535,8 +575,10 @@ def import_statement(doc, mapping):
 				continue
 			matching_text = normalise_narration(description)
 			card_id = extract_card_id(matching_text)
-			customer, loan, count = _customer_and_loan(matching_text, card_id)
+			customer, loan, count, how = _customer_and_loan(matching_text, card_id, detail=True)
 			status = "Ready" if loan else "Choose Loan" if customer and count > 1 else "No Disbursed Loan" if customer else "Unmatched"
+			if loan and how == "check":
+				status = CHECK_CUSTOMER  # 7.1.5: matched only by a converted application number
 			key = _statement_key(doc.bank_account, statement_hash, table["sheet"], row_index)
 			ident = (str(transaction_date), round(amount, 2), line_identity(description))
 			occurrence = seen.get(ident, 0)
@@ -547,7 +589,7 @@ def import_statement(doc, mapping):
 				status = done
 			elif duplicate:
 				status = f"Possible Duplicate of {duplicate}"
-			selected = int(bool(loan) and not duplicate and not done)
+			selected = int(bool(loan) and not duplicate and not done and status != CHECK_CUSTOMER)
 			ready += selected; review += int(not selected)
 			doc.append("transactions", {"statement_transaction_key": key, "transaction_date": transaction_date, "description": description, "amount": amount, "customer_card_id": card_id, "customer": customer, "suggested_loan": loan, "loan": loan, "selected": selected, "status": status})
 			imported += 1
@@ -593,7 +635,8 @@ def create_repayments(doc, row_names=None):
 		# for every automatically-ready row.
 		if row.loan_repayment or row.get("credit_entry") or row.get("fee_payment") or (explicit_rows and row.name not in explicit_rows) or (not explicit_rows and not row.selected):
 			continue
-		if row.transaction_date and getdate(row.transaction_date) < cutover:
+		pre_cutover = bool(row.transaction_date and getdate(row.transaction_date) < cutover)
+		if pre_cutover and not include_pre_cutover(doc):
 			row.update({"selected": 0, "status": "Before cut-over (MYOB)"})
 			skipped += 1
 			continue
@@ -639,10 +682,14 @@ def create_repayments(doc, row_names=None):
 			# dev26: due instalments first, then open servicing-fee invoices, then customer credit; a payoff is held
 			# as credit for the Finance Manager to confirm the settlement.
 			from comfort_homes.hp_lending.hp_credit import allocate_receipt
-			posted = allocate_receipt(loan, row.customer, row.amount, row.transaction_date, account, key, doc.bank_account,
+			# 7.1.5: a receipt from before cut-over that MYOB never recorded is value-dated on the cut-over date
+			# (the MYOB balances and the opening entries are dated the day before); its own date stays on the row.
+			value_date = cutover if pre_cutover else row.transaction_date
+			posted = allocate_receipt(loan, row.customer, row.amount, value_date, account, key, doc.bank_account,
 				cost_center=_cost_center_for_loan(loan))
+			allocation = posted["allocation"] + (f"; received {getdate(row.transaction_date)}, value-dated at cut-over" if pre_cutover else "")
 			row.update({"loan": loan, "loan_repayment": posted["loan_repayment"], "fee_payment": posted["fee_payment"],
-				"credit_entry": posted["credit_entry"], "allocation": posted["allocation"], "status": posted["status"]})
+				"credit_entry": posted["credit_entry"], "allocation": allocation, "status": posted["status"]})
 			hp_mpaisa.remember_mobile(row.customer, row.description)
 			created += 1
 		except Exception as error:

@@ -124,7 +124,9 @@ def match(row):
 	reference = row.reference or ""
 	if reference and not re.fullmatch(r"counter\s*\d*", reference.strip(), re.IGNORECASE):
 		text = api.normalise_narration(reference)
-		customer, loan, count = api._customer_and_loan(text, api.extract_card_id(text))
+		customer, loan, count, how = api._customer_and_loan(text, api.extract_card_id(text), detail=True)
+		if how == "check":
+			return customer, loan, -1  # 7.1.5: converted application number only: the row is shown for checking
 	if not customer:
 		customer = customer_by_mobile(row.mobile)
 		if customer:
@@ -163,12 +165,14 @@ def import_rows(doc, tables, statement_hash):
 		key = statement_key(row) or api._statement_key(doc.bank_account, statement_hash, row.sheet, row.row_index)
 		values = {"statement_transaction_key": key, "transaction_date": row.when.date(), "description": description(row),
 			"amount": row.amount, "customer_card_id": api.extract_card_id(api.normalise_narration(row.reference))}
-		if row.when.date() < cutover:
+		if row.when.date() < cutover and not api.include_pre_cutover(doc):
 			values.update(status="Before cut-over (MYOB)", selected=0)
 			review += 1
 		else:
 			customer, loan, count = match(row)
 			status = "Ready" if loan else "Choose Loan" if customer and count > 1 else "No Disbursed Loan" if customer else "Unmatched"
+			if loan and count == -1:
+				status = api.CHECK_CUSTOMER
 			# 7.1.4: a payment already dealt with in an earlier (overlapping) export is never ticked again
 			ident = (str(row.when.date()), round(float(row.amount), 2), api.line_identity(values["description"]))
 			occurrence = seen.get(ident, 0)
@@ -179,7 +183,7 @@ def import_rows(doc, tables, statement_hash):
 				status = done
 			elif duplicate:
 				status = f"Possible Duplicate of {duplicate}"
-			selected = int(bool(loan) and not duplicate and not done)
+			selected = int(bool(loan) and not duplicate and not done and status != api.CHECK_CUSTOMER)
 			ready += selected
 			review += int(not selected)
 			values.update(customer=customer, suggested_loan=loan, loan=loan, selected=selected, status=status)

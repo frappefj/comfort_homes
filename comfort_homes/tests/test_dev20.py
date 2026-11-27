@@ -52,7 +52,7 @@ def _import_env(env, monkeypatch, duplicate):
 	module = load("api.py")
 	content = "Date,Description,Credit\n24/11/2026,DIRECT TRANSFER FROM 85129016 DEN2026009,184\n"
 	monkeypatch.setattr(module, "_file", lambda doc: (content.encode(), "s.csv"))
-	monkeypatch.setattr(module, "_customer_and_loan", lambda text, card: ("Baniua", "LOAN-486", 1))
+	monkeypatch.setattr(module, "_customer_and_loan", lambda text, card, detail=False: ("Baniua", "LOAN-486", 1) + (("identifier",) if detail else ()))
 	monkeypatch.setattr(module, "_possible_duplicate", lambda *a: duplicate)
 	doc = Row(name="RECO", bank_account="BANK", transactions=[], check_permission=Mock(), save=Mock())
 	doc.append = lambda field, row: doc["transactions"].append(Row(row))

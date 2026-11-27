@@ -1217,6 +1217,14 @@
     "width": null
    },
    {
+    "fieldname": "include_pre_cutover",
+    "fieldtype": "Check",
+    "label": "Include receipts before cut-over (not in MYOB)",
+    "default": "0",
+    "description": "Finance Manager only. Receipts dated before the cut-over date that MYOB never recorded are matched and posted, value-dated on the cut-over date. Leave unticked for normal statements.",
+    "idx": 5
+   },
+   {
     "alignment": "",
     "allow_bulk_edit": 0,
     "allow_in_quick_entry": 0,
@@ -1756,7 +1764,7 @@
   "make_attachments_public": 0,
   "max_attachments": 0,
   "migration_hash": "90e65d205c22e0d785e934fafa81a5f6",
-  "modified": "2026-09-18 16:55:04.636731",
+  "modified": "2026-11-27 18:30:00.000000",
   "module": "Custom",
   "name": "Loan Bank Reconciliation",
   "naming_rule": "",

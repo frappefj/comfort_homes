@@ -1,5 +1,15 @@
 # Comfort Homes — Changelog
 
+## 0.0.7.1.5 — Comfort Homes 7.1.5 (right customer for quoted application numbers; receipts before cut-over; Westpac references)
+
+**Needs install + migrate** (fixture: Loan Bank Reconciliation gets the field *Include receipts before cut-over (not in MYOB)*). No patch, no accounts, no settings. `hp_settings.check_setup` must stay ok. Pinned files unchanged.
+
+- **Quoted application numbers go to the right customer.** Customers quote their original (UAT) application number, e.g. "ACC-LOAP-2026-00314". Devcom holds that number as the customer's HP account 2026-00314, but devcom's own application ACC-LOAP-2026-00314 is a different, converted MYOB contract. The matcher tried the application number first, so 12 receipts in reconciliation 8uqepvhf1o (27-11-2026, $582.98) went to the wrong customers; they were cancelled and re-posted on devcom the same day. Matching now tries exact customer identifiers first (HP account, Card ID, TIN), then a devcom application number. A converted (MYOB) application found only by its number is shown as **Check customer (application number)** and is not ticked; a new contract's own application number still matches as before.
+- **HP account numbers typed loosely** ("2026 00322", "202600221") are read as 2026-00322 / 2026-00221.
+- **Receipts before cut-over (Finance Manager).** Tick *Include receipts before cut-over (not in MYOB)* on a reconciliation to import and post statement lines dated before 21-11-2026 that MYOB never recorded (1–20 Nov 2026). They are matched and checked for duplicates as usual and posted Dr the reconciliation's bank / wallet account, Cr the loan, **value-dated on the cut-over date**; the row keeps its real date and the allocation says "received <date>, value-dated at cut-over". Only Finance Manager or System Manager can import or post on such a reconciliation. M-PAiSA exports honour the box too; M-PAiSA settlements before cut-over are still left for Accounts to post by hand. Unticked (the default), nothing changes.
+- **Westpac statements.** Westpac puts the transaction type in *Transaction Description* and the customer's reference in *Transaction Code Description*; both are now read ("WIRE TRANSFER CREDIT | NAM2026194"). Before, every Westpac line was unmatched.
+- Tests: 557 (17 new in `test_v7_1_5.py`; one stub updated).
+
 ## 0.0.7.1.4 — Comfort Homes 7.1.4 (detailed statement, HP account number guard, reconciliation shortcut, duplicate lines)
 
 **Needs install + migrate** (fixtures: print format "HP Statement of Account"; the Lending workspace shortcut is added by the after-migrate step). No patch, no new accounts, no settings. Then `hp_settings.check_setup` must stay ok. Pinned files hp_interest, hp_penalties, hp_lifecycle, hp_settlement unchanged.
