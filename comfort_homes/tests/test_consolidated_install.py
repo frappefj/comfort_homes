@@ -123,10 +123,13 @@ def test_setup_wrapper_orders_profile_before_public_form_and_never_applies_busin
     monkeypatch.setitem(sys.modules,'comfort_homes.co_applicant',SimpleNamespace(
         ensure_loan_application_fields=lambda:order.append('fields'),
         configure_co_applicant_profile=lambda:order.append('profile')))
+    # 7.1.4: the Lending workspace shortcut is (re-)added after the profile, before forms and print formats
+    monkeypatch.setitem(sys.modules,'comfort_homes.hp_lending.hp_workspace',SimpleNamespace(
+        ensure_lending_shortcuts=lambda:order.append('shortcuts')))
     context=functions('webform_setup.py',['setup_after_sync'],{'setup_web_form_and_print_formats':lambda:order.append('form_print')})
     context['setup_after_sync']()
     context['setup_after_sync']()
-    assert order==['fields','profile','form_print']*2
+    assert order==['fields','profile','shortcuts','form_print']*2
     source=ast.get_source_segment((ROOT/'webform_setup.py').read_text(),next(n for n in ast.parse((ROOT/'webform_setup.py').read_text()).body if isinstance(n,ast.FunctionDef) and n.name=='setup_after_sync'))
     assert 'setup_masters' not in source and 'hp_permissions' not in source
 

@@ -156,6 +156,7 @@ def import_rows(doc, tables, statement_hash):
 	cutover = c.cutover_date()
 	doc.transactions = []
 	imported = ready = review = 0
+	seen = {}
 	for row in statement_rows(tables):
 		if row.kind != "payment":
 			continue
@@ -168,10 +169,17 @@ def import_rows(doc, tables, statement_hash):
 		else:
 			customer, loan, count = match(row)
 			status = "Ready" if loan else "Choose Loan" if customer and count > 1 else "No Disbursed Loan" if customer else "Unmatched"
-			duplicate = api._possible_duplicate(loan, row.when.date(), row.amount, key) if loan else ""
-			if duplicate:
+			# 7.1.4: a payment already dealt with in an earlier (overlapping) export is never ticked again
+			ident = (str(row.when.date()), round(float(row.amount), 2), api.line_identity(values["description"]))
+			occurrence = seen.get(ident, 0)
+			seen[ident] = occurrence + 1
+			done = api.already_reconciled(doc.name, doc.bank_account, row.when.date(), row.amount, values["description"], occurrence)
+			duplicate = "" if done else (api._possible_duplicate(loan, row.when.date(), row.amount, key) if loan else "")
+			if done:
+				status = done
+			elif duplicate:
 				status = f"Possible Duplicate of {duplicate}"
-			selected = int(bool(loan) and not duplicate)
+			selected = int(bool(loan) and not duplicate and not done)
 			ready += selected
 			review += int(not selected)
 			values.update(customer=customer, suggested_loan=loan, loan=loan, selected=selected, status=status)

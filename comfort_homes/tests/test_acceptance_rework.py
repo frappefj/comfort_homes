@@ -215,7 +215,9 @@ def test_both_lpo_approval_roles_have_native_submit_task_and_update_after_submit
     assert len(approval)==2 and {t['allowed'] for t in approval}=={'Finance Manager','Director'}
     assert all(t['transition_tasks']=='Flexi Approve LPO' for t in approval)
     scope={};exec(compile(ast.parse((ROOT/'hooks.py').read_text()),'<hooks>','exec'),scope)
-    assert scope['doc_events']['Loan Application']['before_update_after_submit'].endswith('validate_progress')
+    after_submit=scope['doc_events']['Loan Application']['before_update_after_submit']
+    assert after_submit[0].endswith('validate_progress')  # 7.1.4: then the HP account number guard
+    assert after_submit[1].endswith('hp_account_number.validate')
     assert len(w['states'])==16 and len(w['transitions'])==30  # dev27: Withdrawn + 10 Withdraw transitions
 
 

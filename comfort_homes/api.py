@@ -43,6 +43,65 @@ def _possible_duplicate(loan, transaction_date, amount, key):
 		(loan, transaction_date, amount, key or ""),
 	)
 	return rows[0][0] if rows else ""
+
+
+def line_identity(description):
+	"""Pure: a statement narration compared without case or spacing differences (7.1.4)."""
+	return re.sub(r"\s+", " ", str(description or "")).strip().upper()
+
+
+def occurrence_index(rows, row):
+	"""Pure: 0 for the first statement line with this date, amount and narration in ``rows``, 1 for the
+	second identical line, and so on (two genuine identical payments on one day stay distinct)."""
+	ident = (str(row.get("transaction_date")), round(float(row.get("amount") or 0), 2), line_identity(row.get("description")))
+	count = 0
+	for other in rows:
+		if other is row:
+			return count
+		if (str(other.get("transaction_date")), round(float(other.get("amount") or 0), 2), line_identity(other.get("description"))) == ident:
+			count += 1
+	return count
+
+
+def already_reconciled(doc_name, bank_account, transaction_date, amount, description, occurrence=0):
+	"""7.1.4: where this statement line was already dealt with in another reconciliation, else "".
+
+	The same bank line comes back in every overlapping export with a new row key, so it is recognised by
+	bank account, date, amount and narration. A line counts as dealt with when the earlier row created a
+	loan repayment, a customer-credit entry or a fee payment, or when Accounts journalled it by hand
+	(unidentified receipts: a submitted Journal Entry on that date for that amount quoting the narration)."""
+	ident = line_identity(description)
+	if not ident or not transaction_date:
+		return ""
+	rows = frappe.db.sql(
+		"""SELECT r.parent, r.idx, r.description, r.loan_repayment, r.credit_entry, r.fee_payment
+		   FROM `tabLoan Bank Reconciliation Item` r JOIN `tabLoan Bank Reconciliation` p ON p.name = r.parent
+		   WHERE r.parent != %s AND p.bank_account = %s AND r.transaction_date = %s AND ABS(r.amount - %s) < 0.005
+		   ORDER BY p.creation, r.idx""",
+		(doc_name or "", bank_account, transaction_date, amount), as_dict=True)
+	by_parent = {}
+	for r in rows:
+		if line_identity(r.description) == ident:
+			by_parent.setdefault(r.parent, []).append(r)
+	for parent, same in by_parent.items():
+		if occurrence < len(same):
+			r = same[occurrence]
+			if r.loan_repayment:
+				return f"Already reconciled ({parent}): {r.loan_repayment}"
+			if r.credit_entry:
+				return f"Already held as credit ({parent}): {r.credit_entry}"
+			if r.fee_payment:
+				return f"Already paid fees ({parent}): {r.fee_payment}"
+	text = str(description or "").strip()
+	journals = frappe.db.sql(
+		"""SELECT name FROM `tabJournal Entry` WHERE docstatus = 1 AND posting_date = %s
+		   AND ABS(total_debit - %s) < 0.005 AND user_remark LIKE %s ORDER BY creation""",
+		(transaction_date, amount, "%" + text.replace("%", "").replace("_", "\\_") + "%"))
+	if occurrence < len(journals):
+		return f"Already journalled: {journals[occurrence][0]}"
+	return ""
+
+
 # Customer fields that each hold an exact, per-customer identifier a bank narration can carry.
 CUSTOMER_ID_FIELDS = ("custom_card_id", "custom_ch_account_reference_no", "custom_tin_number")
 ALIASES = {
@@ -457,6 +516,7 @@ def import_statement(doc, mapping):
 		frappe.throw(_("Choose transaction date, description, and credit or amount columns."))
 	doc.transactions = []
 	imported = ready = review = 0
+	seen = {}  # 7.1.4: identical lines in this file, for already_reconciled
 	for table in tables:
 		for row_index, values in enumerate(table["rows"]):
 			row = {header: values[index] if index < len(values) else "" for index, header in enumerate(table["headers"])}
@@ -478,10 +538,16 @@ def import_statement(doc, mapping):
 			customer, loan, count = _customer_and_loan(matching_text, card_id)
 			status = "Ready" if loan else "Choose Loan" if customer and count > 1 else "No Disbursed Loan" if customer else "Unmatched"
 			key = _statement_key(doc.bank_account, statement_hash, table["sheet"], row_index)
-			duplicate = _possible_duplicate(loan, transaction_date, amount, key) if loan else ""
-			if duplicate:
+			ident = (str(transaction_date), round(amount, 2), line_identity(description))
+			occurrence = seen.get(ident, 0)
+			seen[ident] = occurrence + 1
+			done = already_reconciled(doc.name, doc.bank_account, transaction_date, amount, description, occurrence)
+			duplicate = "" if done else (_possible_duplicate(loan, transaction_date, amount, key) if loan else "")
+			if done:
+				status = done
+			elif duplicate:
 				status = f"Possible Duplicate of {duplicate}"
-			selected = int(bool(loan) and not duplicate)
+			selected = int(bool(loan) and not duplicate and not done)
 			ready += selected; review += int(not selected)
 			doc.append("transactions", {"statement_transaction_key": key, "transaction_date": transaction_date, "description": description, "amount": amount, "customer_card_id": card_id, "customer": customer, "suggested_loan": loan, "loan": loan, "selected": selected, "status": status})
 			imported += 1
@@ -545,6 +611,13 @@ def create_repayments(doc, row_names=None):
 			row.update({"loan": None, "selected": 0, "status": "Choose Loan"})
 			skipped += 1
 			continue
+		# 7.1.4: never post a statement line another reconciliation already dealt with, even if re-ticked.
+		done = already_reconciled(doc.name, doc.bank_account, row.transaction_date, row.amount, row.description,
+			occurrence_index(doc.transactions, row))
+		if done:
+			row.update({"selected": 0, "status": done})
+			skipped += 1
+			continue
 		# A staff member can manually select a loan for a matched customer. That
 		# valid selection is ready to post even if its earlier import status was
 		# "Choose Loan".
@@ -576,7 +649,7 @@ def create_repayments(doc, row_names=None):
 			frappe.db.rollback(save_point="hp_bank_row")
 			row.status = "Error"; errors.append(f"{row.customer_card_id or row.name}: {str(error)[:120]}")
 	posted = sum(bool(row.loan_repayment or row.get("credit_entry") or row.get("fee_payment")) for row in doc.transactions)
-	open_rows = [row for row in doc.transactions if row.status != "Before cut-over (MYOB)"]
+	open_rows = [row for row in doc.transactions if row.status != "Before cut-over (MYOB)" and not str(row.status or "").startswith("Already ")]
 	doc.update({"created_repayments": posted, "status": "Reconciled" if posted and posted == len(open_rows) else "Partially Reconciled"})
 	doc.save()
 	result = {"created": created, "skipped": skipped, "errors": errors[:10]}

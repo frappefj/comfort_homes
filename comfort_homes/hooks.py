@@ -209,7 +209,7 @@ doc_events = {
 		"before_validate": "comfort_homes.loan_mapping.apply_purchase_invoice_loan_application",
 	},
 	"Loan Application": {
-		"before_update_after_submit": "comfort_homes.hp_lending.hp_workflow.validate_progress",
+		"before_update_after_submit": ["comfort_homes.hp_lending.hp_workflow.validate_progress", "comfort_homes.hp_lending.hp_account_number.validate"],
 		"before_save": ["comfort_homes.loan_application_workflow.calculate_financials", "comfort_homes.document_controls.validate_application", "comfort_homes.hp_lending.hp_workflow.validate_progress", "comfort_homes.hp_lending.hp_approval.bind_approval"],
 		"before_submit": ["comfort_homes.loan_application_workflow.calculate_financials", "comfort_homes.document_controls.validate_application", "comfort_homes.hp_lending.hp_workflow.validate_progress", "comfort_homes.hp_lending.hp_approval.bind_approval"],
 		"before_insert": "comfort_homes.loan_application_workflow.validate_public_application_not_existing_customer",
@@ -227,7 +227,8 @@ doc_events = {
 			"comfort_homes.flexi_events.prepare_loan_amount",
 		],
 		# 7.1: former Server Scripts "Before Save" (= validate) and "After Save" (= on_update)
-		"validate": ["comfort_homes.flexi_events.default_customer_agreements", "comfort_homes.flexi_events.status_display"],
+		"validate": ["comfort_homes.flexi_events.default_customer_agreements", "comfort_homes.flexi_events.status_display",
+			"comfort_homes.hp_lending.hp_account_number.validate"],  # 7.1.4: HP account number guard
 		"on_update": "comfort_homes.flexi_events.link_documents",
 	},
 	"ToDo": {

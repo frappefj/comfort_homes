@@ -748,6 +748,9 @@ def setup_after_sync():
 	)
 	ensure_loan_application_fields()
 	configure_co_applicant_profile()
+	# 7.1.4: Loan Bank Reconciliation shortcut on the Lending workspace (re-added after Lending's own syncs)
+	from comfort_homes.hp_lending.hp_workspace import ensure_lending_shortcuts
+	ensure_lending_shortcuts()
 	return setup_web_form_and_print_formats()
 
 
