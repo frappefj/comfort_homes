@@ -29,6 +29,11 @@ def is_other_application_id(value, own_name):
 	return bool(APPLICATION_ID.match(value)) and value != normalise(own_name)
 
 
+def _is_branch_number(value):
+	from comfort_homes.hp_lending.hp_branch_number import is_branch_number
+	return is_branch_number(value)
+
+
 def _changed(doc):
 	if doc.is_new():
 		return True
@@ -50,6 +55,13 @@ def validate(doc, method=None):
 			title=_("Wrong HP Account Number"))
 	if not _changed(doc):
 		return
+	# 7.1.6: a branch number, once given, stays: it is on the signed contract and the customer's bank instruction.
+	before_save = getattr(doc, "get_doc_before_save", None)
+	old = before_save() if before_save and not doc.is_new() else None
+	before = str(old.get(FIELD) or "").strip() if old else ""
+	if before and before != value and _is_branch_number(before) and "System Manager" not in frappe.get_roles():
+		frappe.throw(_("HP Account Number {0} was given to this contract and cannot be changed.").format(before),
+			title=_("HP Account Number is fixed"))
 	others = frappe.get_all("Loan Application", filters={FIELD: value, "name": ["!=", doc.name]},
 		fields=["name", "applicant", "applicant_name"], limit_page_length=5)
 	clash = [o for o in others if not doc.get("applicant") or o.applicant != doc.get("applicant")]

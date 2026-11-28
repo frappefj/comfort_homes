@@ -7,7 +7,7 @@
   "public": 1,
   "icon": "chart",
   "is_hidden": 0,
-  "content": "[{\"id\": \"h1\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Portfolio Control</b></span>\", \"col\": 12}}, {\"id\": \"c0\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Portfolio Red\", \"col\": 3}}, {\"id\": \"c1\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Portfolio Orange\", \"col\": 3}}, {\"id\": \"c2\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Portfolio Green\", \"col\": 3}}, {\"id\": \"c3\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Portfolio NPA\", \"col\": 3}}, {\"id\": \"c4\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Portfolio Overdue\", \"col\": 4}}, {\"id\": \"c5\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Collected Today\", \"col\": 4}}, {\"id\": \"sp\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"s1\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Portfolio Control\", \"col\": 4}}, {\"id\": \"s2\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"HP Daily Collections\", \"col\": 4}}]",
+  "content": "[{\"id\": \"h1\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Portfolio Control</b></span>\", \"col\": 12}}, {\"id\": \"c0\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Portfolio Red\", \"col\": 3}}, {\"id\": \"c1\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Portfolio Orange\", \"col\": 3}}, {\"id\": \"c2\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Portfolio Green\", \"col\": 3}}, {\"id\": \"c3\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Portfolio NPA\", \"col\": 3}}, {\"id\": \"c4\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Portfolio Overdue\", \"col\": 4}}, {\"id\": \"c5\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Collected Today\", \"col\": 4}}, {\"id\": \"h2\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h5\\\"><b>Income and charges</b></span>\", \"col\": 12}}, {\"id\": \"i0\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"HP Interest Earned\", \"col\": 3}}, {\"id\": \"i1\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"HP Unearned Interest\", \"col\": 3}}, {\"id\": \"i2\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"HP Charges Held\", \"col\": 3}}, {\"id\": \"i3\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"HP Fees Billed\", \"col\": 3}}, {\"id\": \"i4\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"HP PPT Copies Outstanding\", \"col\": 4}}, {\"id\": \"sp\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"s1\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Portfolio Control\", \"col\": 4}}, {\"id\": \"s2\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"HP Daily Collections\", \"col\": 4}}, {\"id\": \"s9\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"HP Income and Charges\", \"col\": 4}}]",
   "roles": [
     {
       "role": "Director"
@@ -43,6 +43,26 @@
     {
       "number_card_name": "Collected Today",
       "label": "Collected today"
+    },
+    {
+      "number_card_name": "HP Interest Earned",
+      "label": "Interest earned this month"
+    },
+    {
+      "number_card_name": "HP Unearned Interest",
+      "label": "Interest not yet earned"
+    },
+    {
+      "number_card_name": "HP Charges Held",
+      "label": "Default charges held"
+    },
+    {
+      "number_card_name": "HP Fees Billed",
+      "label": "Fees billed this month"
+    },
+    {
+      "number_card_name": "HP PPT Copies Outstanding",
+      "label": "PPT stamped copies outstanding"
     }
   ],
   "shortcuts": [
@@ -59,6 +79,13 @@
       "type": "Report",
       "doc_view": "",
       "color": "Green"
+    },
+    {
+      "label": "HP Income and Charges",
+      "type": "Report",
+      "link_to": "HP Income and Charges",
+      "color": "Green",
+      "doc_view": ""
     }
   ],
   "links": [],

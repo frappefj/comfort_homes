@@ -106,7 +106,8 @@ def already_reconciled(doc_name, bank_account, transaction_date, amount, descrip
 
 
 # Customer fields that each hold an exact, per-customer identifier a bank narration can carry.
-CUSTOMER_ID_FIELDS = ("custom_card_id", "custom_ch_account_reference_no", "custom_tin_number")
+CUSTOMER_ID_FIELDS = ("custom_card_id", "custom_ch_account_reference_no", "custom_tin_number",
+	"custom_hp_previous_account_number")  # 7.1.6: the number a renumbered customer used before
 ALIASES = {
 	"date": ("value date", "effective date", "transaction date", "date", "posted date"),
 	"description": ("transaction description", "description", "operation", "narration", "details"),
@@ -276,6 +277,12 @@ def _customer_and_loan(description, card_id, detail=False):
 	identifiers = list(dict.fromkeys([card_id] + CARD_ID_PATTERN.findall((description or "").upper())
 		+ HP_ACCOUNT_PATTERN.findall(description or "")
 		+ re.findall(r"\b\d{5,}\b", description or "")))
+	# 7.1.6: an HP account number held on an application identifies that exact contract, also for a returning
+	# customer with several loans whose customer record keeps an older number.
+	contract = _loan_by_application_number(identifiers)
+	if contract:
+		return out(contract.applicant, contract.name, 1, "identifier")
+
 	matched_customers = set()
 	for fieldname in CUSTOMER_ID_FIELDS:
 		if not frappe.db.has_column("Customer", fieldname):
@@ -310,11 +317,59 @@ def _customer_and_loan(description, card_id, detail=False):
 				if frappe.db.has_column("Loan Application", "custom_hp_converted") else 0
 			return out(loans[0].applicant, loans[0].name, 1, "check" if converted else "application")
 
+	# 7.1.6: the payer's own bank account ("DIRECT TRANSFER FROM 85687414 ...") when it belongs to one customer:
+	# the account on their application or on a verified Bank PPT Authority.
+	customer = _customer_by_payer_account(description)
+	if customer:
+		loans = _loan_matches(customer)
+		return out(customer, loans[0].name if len(loans) == 1 else "", len(loans), "payer account")
+
 	customer = _customer_name_from_description(description)
 	if not customer:
 		return out("", "", 0, "")
 	loans = _loan_matches(customer)
 	return out(customer, loans[0].name if len(loans) == 1 else "", len(loans), "name")
+
+
+PAYER_ACCOUNT_PATTERN = re.compile(r"\bFROM\s+(\d{6,14})\b", re.IGNORECASE)
+HP_NUMBER_FIELD = "custom_flexi_hp_account_number"
+
+
+def _loan_by_application_number(identifiers):
+	numbers = [i for i in identifiers if i and (HP_ACCOUNT_PATTERN.fullmatch(i) or re.fullmatch(r"[A-Z]{2,3}20\d{5,6}", i))]
+	if not numbers or not frappe.db.has_column("Loan Application", HP_NUMBER_FIELD):
+		return None
+	applications = {a.name for a in frappe.get_all("Loan Application", filters={HP_NUMBER_FIELD: ["in", numbers]},
+		fields=["name"], limit_page_length=3)}
+	if not applications and frappe.db.has_column("Loan Application", "custom_hp_previous_account_number"):
+		applications = {a.name for a in frappe.get_all("Loan Application",
+			filters={"custom_hp_previous_account_number": ["in", numbers]}, fields=["name"], limit_page_length=3)}
+	if len(applications) != 1:
+		return None
+	loans = frappe.get_all("Loan", filters={"loan_application": next(iter(applications)), "status": "Disbursed"},
+		fields=["name", "applicant"], limit_page_length=2)
+	return loans[0] if len(loans) == 1 else None
+
+
+def payer_accounts(description):
+	"""Pure: bank account numbers a narration says the money came from."""
+	return list(dict.fromkeys(PAYER_ACCOUNT_PATTERN.findall(description or "")))
+
+
+def _customer_by_payer_account(description):
+	found = set()
+	for account in payer_accounts(description):
+		if frappe.db.has_column("Customer", "custom_hp_payer_accounts"):
+			for row in frappe.get_all("Customer", filters={"custom_hp_payer_accounts": ["like", f"%{account}%"]},
+					fields=["name", "custom_hp_payer_accounts"], limit_page_length=3):
+				if account in re.split(r"[\s,;]+", row.custom_hp_payer_accounts or ""):
+					found.add(row.name)
+		if frappe.db.has_column("Loan Application", "custom_bank_account_number"):
+			for row in frappe.get_all("Loan Application", filters={"custom_bank_account_number": account, "docstatus": 1},
+					fields=["applicant"], limit_page_length=3):
+				if row.applicant:
+					found.add(row.applicant)
+	return next(iter(found)) if len(found) == 1 else ""
 
 
 @frappe.whitelist()

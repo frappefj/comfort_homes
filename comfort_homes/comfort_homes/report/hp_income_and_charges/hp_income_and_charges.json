@@ -1,0 +1,17 @@
+{
+  "doctype": "Report",
+  "name": "HP Income and Charges",
+  "report_name": "HP Income and Charges",
+  "ref_doctype": "GL Entry",
+  "report_type": "Script Report",
+  "is_standard": "Yes",
+  "module": "Comfort Homes",
+  "disabled": 0,
+  "add_total_row": 1,
+  "roles": [
+    {"role": "Director"},
+    {"role": "Finance Manager"},
+    {"role": "Accounts Manager"},
+    {"role": "Loan Manager"}
+  ]
+}

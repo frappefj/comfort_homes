@@ -106,3 +106,9 @@ def hp_statement(doc):
 	"""dev27: Statement of Account figures for the HP Statement of Account print format."""
 	from comfort_homes.hp_lending.hp_statement import statement_data
 	return statement_data(doc.name, doc.get("statement_from"), doc.get("statement_to"))
+
+
+def hp_ppt(doc):
+	"""7.1.6: data for the Bank PPT Authority print format."""
+	from comfort_homes.hp_lending.hp_ppt import print_data
+	return print_data(doc)

@@ -1,0 +1,13 @@
+{
+  "doctype": "Number Card",
+  "name": "HP Charges Held",
+  "label": "Default charges held",
+  "type": "Custom",
+  "method": "comfort_homes.hp_lending.hp_income.card_charges_held",
+  "is_standard": 1,
+  "is_public": 1,
+  "module": "Comfort Homes",
+  "show_percentage_stats": 0,
+  "filters_json": "[]",
+  "dynamic_filters_json": "[]"
+}

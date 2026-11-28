@@ -14,7 +14,8 @@ app_include_js = ["/assets/comfort_homes/js/hp_origination_math.js"]
 web_include_js = ["/assets/comfort_homes/js/hp_origination_math.js", "/assets/comfort_homes/js/loan_application_branch_filter.js"]
 
 doctype_js = {
-	"Loan": ["public/js/loan_temporary_repayment_tenure.js", "public/js/hp_service_fees.js", "public/js/hp_loan_settlement.js"],
+	"Loan": ["public/js/loan_temporary_repayment_tenure.js", "public/js/hp_service_fees.js", "public/js/hp_loan_settlement.js",
+		"public/js/hp_ppt.js"],
 	"Loan Repayment": "public/js/loan_repayment_store.js",
     "Sales Invoice": "public/js/hp_service_fees.js",
 	"Co-Applicant": ["public/js/co_applicant_profile.js", "public/js/document_evidence.js", "public/js/hp_document_status.js", "public/js/co_applicant_back_link.js"],
@@ -80,6 +81,7 @@ fixtures = [
 			"Application Print WIP",
 			"CIRA Authority Form",
 			"HP Statement of Account",
+			"HP Bank PPT Authority",
 		]]],
 	},
 	{
@@ -87,7 +89,7 @@ fixtures = [
 		# Flexi extends Lending's standard DocTypes through Custom Field records.
 		# Keeping the complete set here makes a fresh installation reproduce the
 		# same Loan Application layout and database columns as the working site.
-		"filters": [["dt", "in", ["Company", "Loan Application", "Loan", "Loan Product", "Journal Entry", "Loan Disbursement", "Sales Invoice", "Purchase Order", "Purchase Invoice", "Customer", "Contact", "Loan Document Template", "Co-Applicant", "Loan Customer Agreement", "Loan Repayment"]]],
+		"filters": [["dt", "in", ["Company", "Loan Application", "Loan", "Loan Product", "Journal Entry", "Loan Disbursement", "Sales Invoice", "Purchase Order", "Purchase Invoice", "Customer", "Contact", "Loan Document Template", "Co-Applicant", "Loan Customer Agreement", "Loan Repayment", "Bank Account"]]],
 	},
 	{
 		"dt": "Property Setter",
@@ -181,6 +183,7 @@ doc_events = {
 		],
 		# dev14 MYOB conversion: opening position of an imported, converted HP loan.
 		"on_submit": "comfort_homes.hp_lending.hp_conversion.on_loan_submit",
+		"before_update_after_submit": "comfort_homes.hp_lending.hp_ppt.on_loan_update",  # 7.1.6: Bank PPT Authority
 	},
 	"Loan Repayment": {
 		"before_validate": "comfort_homes.flexi_events.default_repayment_mode",  # 7.1: was a Server Script
@@ -222,6 +225,7 @@ doc_events = {
             "comfort_homes.hp_lending.hp_intake.validate_locations",
 			"comfort_homes.hp_lending.hp_lifecycle.validate_deposit_payment",
 			"comfort_homes.hp_lending.hp_workflow.require_deposit_before_contract",
+			"comfort_homes.hp_lending.hp_branch_number.assign_on_contract_signing",  # 7.1.6: branch HP number
 			# 7.1: former Server Scripts, last as before (Frappe ran server scripts after app hooks)
 			"comfort_homes.flexi_events.create_customer",
 			"comfort_homes.flexi_events.prepare_loan_amount",
@@ -233,6 +237,10 @@ doc_events = {
 	},
 	"ToDo": {
 		"on_update": "comfort_homes.flexi_events.sync_prepared_by",  # 7.1: was a Server Script
+	},
+	# 7.1.6: readable reconciliation IDs, BREC-BSP-2026-0001
+	"Loan Bank Reconciliation": {
+		"autoname": "comfort_homes.hp_lending.hp_reconciliation_setup.autoname",
 	},
 	"Co-Applicant": {
 		"before_validate": "comfort_homes.origination.apply_profile",
